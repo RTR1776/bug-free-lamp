@@ -74,7 +74,7 @@ export class HUD {
         
         // Player position and rotation
         const playerPos = player.getPosition();
-        const playerRotY = player.rotation.y;
+        const playerRotY = player.yaw;
         
         // Draw player (center)
         ctx.fillStyle = '#00ffff';
