@@ -86,30 +86,74 @@ export class CityGenerator {
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
         
-        // Building wall base
-        ctx.fillStyle = '#1a2a3a';
+        // Building wall base - darker with more variation
+        const baseGray = 20 + Math.random() * 15;
+        ctx.fillStyle = `rgb(${baseGray}, ${baseGray + 5}, ${baseGray + 10})`;
         ctx.fillRect(0, 0, 128, 256);
         
-        // Window grid
-        const windowWidth = 12;
-        const windowHeight = 16;
-        const spacingX = 16;
-        const spacingY = 20;
+        // Add some wall texture/noise
+        for (let i = 0; i < 800; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 256;
+            const gray = baseGray - 5 + Math.random() * 10;
+            ctx.fillStyle = `rgba(${gray}, ${gray}, ${gray}, 0.5)`;
+            ctx.fillRect(x, y, 1 + Math.random(), 1 + Math.random());
+        }
+        
+        // Window grid with more detail
+        const windowWidth = 10;
+        const windowHeight = 14;
+        const spacingX = 14;
+        const spacingY = 18;
         
         for (let y = 8; y < 256; y += spacingY) {
-            for (let x = 8; x < 128; x += spacingX) {
-                // Some windows are lit
-                const isLit = lit && Math.random() > 0.4;
+            for (let x = 6; x < 128; x += spacingX) {
+                // Window frame
+                ctx.fillStyle = '#151520';
+                ctx.fillRect(x - 1, y - 1, windowWidth + 2, windowHeight + 2);
+                
+                // Some windows are lit with varying colors
+                const isLit = lit && Math.random() > 0.35;
                 if (isLit) {
-                    ctx.fillStyle = Math.random() > 0.5 ? '#ffeeaa' : '#aaddff';
+                    const warmth = Math.random();
+                    if (warmth > 0.7) {
+                        ctx.fillStyle = '#ffeeaa'; // Warm yellow
+                    } else if (warmth > 0.4) {
+                        ctx.fillStyle = '#aaddff'; // Cool blue (TV/monitor)
+                    } else {
+                        ctx.fillStyle = '#ffeedd'; // Soft white
+                    }
                     ctx.shadowColor = ctx.fillStyle;
-                    ctx.shadowBlur = 4;
+                    ctx.shadowBlur = 3;
+                    
+                    // Interior glow gradient
+                    const gradient = ctx.createLinearGradient(x, y, x, y + windowHeight);
+                    gradient.addColorStop(0, ctx.fillStyle);
+                    gradient.addColorStop(1, '#ffe8aa');
+                    ctx.fillStyle = gradient;
                 } else {
-                    ctx.fillStyle = '#0a1520';
+                    ctx.fillStyle = '#080812';
                     ctx.shadowBlur = 0;
                 }
                 ctx.fillRect(x, y, windowWidth, windowHeight);
+                
+                // Window dividers (cross pattern)
+                if (Math.random() > 0.5) {
+                    ctx.fillStyle = '#202030';
+                    ctx.fillRect(x + windowWidth / 2 - 0.5, y, 1, windowHeight);
+                    ctx.fillRect(x, y + windowHeight / 2 - 0.5, windowWidth, 1);
+                }
             }
+        }
+        
+        // Add some vertical lines for building panels
+        ctx.strokeStyle = 'rgba(40, 40, 50, 0.3)';
+        ctx.lineWidth = 2;
+        for (let x = 0; x < 128; x += 32) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, 256);
+            ctx.stroke();
         }
         
         const texture = new THREE.CanvasTexture(canvas);
@@ -120,20 +164,47 @@ export class CityGenerator {
     
     createConcreteTexture() {
         const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
+        canvas.width = 128;
+        canvas.height = 128;
         const ctx = canvas.getContext('2d');
         
+        // Concrete base with slight color variation
         ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(0, 0, 64, 64);
+        ctx.fillRect(0, 0, 128, 128);
         
-        // Add noise
-        for (let i = 0; i < 500; i++) {
-            const x = Math.random() * 64;
-            const y = Math.random() * 64;
-            const gray = 40 + Math.random() * 30;
+        // Add noise for realistic concrete
+        for (let i = 0; i < 1500; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 128;
+            const gray = 35 + Math.random() * 35;
             ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
-            ctx.fillRect(x, y, 1, 1);
+            ctx.fillRect(x, y, 1 + Math.random(), 1 + Math.random());
+        }
+        
+        // Add some darker spots (stains/weathering)
+        for (let i = 0; i < 8; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 128;
+            const radius = 3 + Math.random() * 8;
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, 'rgba(25, 25, 25, 0.4)');
+            gradient.addColorStop(1, 'rgba(25, 25, 25, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Add subtle cracks
+        ctx.strokeStyle = 'rgba(20, 20, 20, 0.3)';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * 128, Math.random() * 128);
+            for (let j = 0; j < 3; j++) {
+                ctx.lineTo(Math.random() * 128, Math.random() * 128);
+            }
+            ctx.stroke();
         }
         
         const texture = new THREE.CanvasTexture(canvas);
@@ -148,23 +219,49 @@ export class CityGenerator {
         canvas.height = 128;
         const ctx = canvas.getContext('2d');
         
-        // Base grass color
-        ctx.fillStyle = '#1a3320';
+        // Base grass color - darker for night
+        ctx.fillStyle = '#0f2215';
         ctx.fillRect(0, 0, 128, 128);
         
-        // Grass blades
-        for (let i = 0; i < 1000; i++) {
+        // Grass variation patches
+        for (let i = 0; i < 20; i++) {
             const x = Math.random() * 128;
             const y = Math.random() * 128;
-            const green = 30 + Math.random() * 40;
-            ctx.fillStyle = `rgb(${green * 0.3}, ${green}, ${green * 0.3})`;
-            ctx.fillRect(x, y, 1, 2);
+            const radius = 10 + Math.random() * 20;
+            const green = 20 + Math.random() * 25;
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, `rgba(${green * 0.4}, ${green}, ${green * 0.3}, 0.5)`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Grass blades
+        for (let i = 0; i < 1500; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 128;
+            const green = 25 + Math.random() * 45;
+            const height = 1 + Math.random() * 3;
+            ctx.fillStyle = `rgb(${green * 0.3}, ${green}, ${green * 0.25})`;
+            ctx.fillRect(x, y, 1, height);
+        }
+        
+        // Add some small dirt patches
+        for (let i = 0; i < 5; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 128;
+            ctx.fillStyle = 'rgba(40, 30, 20, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2 + Math.random() * 4, 0, Math.PI * 2);
+            ctx.fill();
         }
         
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(100, 100);
+        texture.repeat.set(120, 120);
         return texture;
     }
     
@@ -174,18 +271,34 @@ export class CityGenerator {
         canvas.height = 64;
         const ctx = canvas.getContext('2d');
         
-        ctx.fillStyle = '#2a2222';
+        ctx.fillStyle = '#1a1515';
         ctx.fillRect(0, 0, 64, 64);
         
-        // Shingle pattern
-        for (let y = 0; y < 64; y += 8) {
-            const offset = (y / 8) % 2 === 0 ? 0 : 8;
-            for (let x = offset; x < 64; x += 16) {
-                ctx.fillStyle = '#3a2828';
-                ctx.fillRect(x, y, 14, 6);
-                ctx.strokeStyle = '#1a1010';
-                ctx.strokeRect(x, y, 14, 6);
+        // Shingle pattern with more detail
+        for (let y = 0; y < 64; y += 6) {
+            const offset = (y / 6) % 2 === 0 ? 0 : 8;
+            for (let x = offset - 8; x < 72; x += 16) {
+                // Shingle base
+                const brightness = 25 + Math.random() * 15;
+                ctx.fillStyle = `rgb(${brightness}, ${brightness - 5}, ${brightness - 8})`;
+                ctx.fillRect(x, y, 14, 5);
+                
+                // Shingle shadow edge
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(x, y + 4, 14, 1);
+                
+                // Shingle highlight
+                ctx.fillStyle = 'rgba(60, 50, 45, 0.2)';
+                ctx.fillRect(x, y, 14, 1);
             }
+        }
+        
+        // Add some moss/weathering
+        for (let i = 0; i < 20; i++) {
+            const x = Math.random() * 64;
+            const y = Math.random() * 64;
+            ctx.fillStyle = 'rgba(30, 40, 25, 0.4)';
+            ctx.fillRect(x, y, 2, 2);
         }
         
         const texture = new THREE.CanvasTexture(canvas);
