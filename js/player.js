@@ -1,4 +1,4 @@
-// Player Spaceship Module
+// Player Spaceship Module - Arcade Flight Controls
 import { WORLD_SIZE } from './main.js';
 
 export class Player {
@@ -6,404 +6,446 @@ export class Player {
         this.scene = scene;
         this.camera = camera;
         
-        // Physics properties
-        this.position = new THREE.Vector3(0, 150, 300);
+        // Transform
+        this.position = new THREE.Vector3(0, 150, 400);
         this.velocity = new THREE.Vector3();
-        this.rotation = new THREE.Euler(0, 0, 0, 'YXZ');
         this.quaternion = new THREE.Quaternion();
         
-        // Movement settings
-        this.maxSpeed = 200;
-        this.acceleration = 150;
-        this.deceleration = 50;
-        this.boostMultiplier = 2;
-        this.mouseSensitivity = 0.002;
-        this.rollSpeed = 2;
+        // Flight physics - arcade style
+        this.throttle = 0.5;
+        this.pitch = 0;
+        this.yaw = Math.PI;
+        this.roll = 0;
+        
+        // Speed settings
+        this.minSpeed = 60;
+        this.cruiseSpeed = 140;
+        this.maxSpeed = 280;
+        this.boostSpeed = 450;
+        
+        // Control sensitivity
+        this.pitchSpeed = 1.8;
+        this.yawSpeed = 1.5;
+        this.rollSpeed = 2.5;
+        this.throttleSpeed = 0.8;
         
         // Combat
         this.health = 100;
         this.maxHealth = 100;
         this.shootCooldown = 0;
-        this.shootRate = 0.15; // seconds between shots
+        this.shootRate = 0.1;
         this.collisionRadius = 5;
         
-        // Third-person camera settings
-        this.cameraDistance = 20;
-        this.cameraHeight = 6;
-        this.cameraYaw = 0;   // Horizontal orbit angle
-        this.cameraPitch = 0.2; // Vertical angle (slight look down)
-        this.cameraLerpSpeed = 0.08;
-        this.cameraTargetPos = new THREE.Vector3();
-        this.cameraCurrentPos = new THREE.Vector3();
+        // Camera
+        this.cameraOffset = new THREE.Vector3(0, 5, 22);
+        this.cameraLookAhead = 35;
+        this.cameraLerp = 0.07;
+        this.cameraCurrent = new THREE.Vector3();
+        this.cameraShake = 0;
         
-        // Ship rotation (separate from camera)
-        this.shipYaw = Math.PI; // Face toward city initially
-        this.shipPitch = 0;
-        this.shipRoll = 0;
+        // Engine trails
+        this.engineTrails = [];
+        this.trailPositions = [];
         
-        // Create the ship mesh
+        // Create ship
         this.mesh = this.createShipMesh();
         this.scene.add(this.mesh);
+        this.createEngineTrails();
         
-        // Reusable vectors for calculations
+        // Reusable vectors
         this._forward = new THREE.Vector3();
         this._right = new THREE.Vector3();
         this._up = new THREE.Vector3();
         this._tempVec = new THREE.Vector3();
-        this._cameraForward = new THREE.Vector3();
+        this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
     }
     
     createShipMesh() {
         const group = new THREE.Group();
         
-        // Materials
-        const bodyMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x00aacc,
-            emissive: 0x003344,
-            emissiveIntensity: 0.3,
-            metalness: 0.7,
+        // Premium materials
+        const hullMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a8ccc,
+            emissive: 0x0a3344,
+            emissiveIntensity: 0.2,
+            metalness: 0.85,
+            roughness: 0.15
+        });
+        
+        const darkMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0a1a2a,
+            metalness: 0.9,
             roughness: 0.3
         });
         
-        const accentMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.5,
-            metalness: 0.9,
-            roughness: 0.2
-        });
-        
-        const engineMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x00ff88
-        });
-        
-        const wireMaterial = new THREE.LineBasicMaterial({ 
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x00ffff,
             transparent: true,
-            opacity: 0.6
+            opacity: 0.9
         });
         
-        // Main body - elongated shape
-        const bodyGeometry = new THREE.ConeGeometry(2.5, 10, 6);
-        bodyGeometry.rotateX(Math.PI / 2);
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.castShadow = true;
-        group.add(body);
-        
-        // Body wireframe
-        const bodyEdges = new THREE.EdgesGeometry(bodyGeometry);
-        const bodyWire = new THREE.LineSegments(bodyEdges, wireMaterial);
-        group.add(bodyWire);
-        
-        // Cockpit
-        const cockpitGeometry = new THREE.SphereGeometry(1.5, 8, 6);
-        cockpitGeometry.translate(0, 0.5, -2);
         const cockpitMaterial = new THREE.MeshStandardMaterial({
-            color: 0x88ddff,
-            emissive: 0x0066aa,
+            color: 0x88eeff,
+            emissive: 0x00aacc,
             emissiveIntensity: 0.4,
-            metalness: 0.2,
-            roughness: 0.1,
+            metalness: 0.1,
+            roughness: 0.05,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.85
         });
-        const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
-        group.add(cockpit);
         
-        // Left wing
-        const wingGeometry = new THREE.BoxGeometry(8, 0.3, 3);
-        wingGeometry.translate(-5, 0, 1);
-        const leftWing = new THREE.Mesh(wingGeometry, bodyMaterial);
+        // Main fuselage
+        const fuselageGeo = new THREE.CylinderGeometry(1.5, 2.5, 14, 8);
+        fuselageGeo.rotateX(Math.PI / 2);
+        const fuselage = new THREE.Mesh(fuselageGeo, hullMaterial);
+        fuselage.castShadow = true;
+        group.add(fuselage);
+        
+        // Nose cone
+        const noseGeo = new THREE.ConeGeometry(1.5, 6, 8);
+        noseGeo.rotateX(Math.PI / 2);
+        noseGeo.translate(0, 0, -10);
+        const nose = new THREE.Mesh(noseGeo, hullMaterial);
+        nose.castShadow = true;
+        group.add(nose);
+        
+        // Cockpit canopy
+        const canopyGeo = new THREE.SphereGeometry(1.6, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        canopyGeo.scale(1, 0.5, 1.5);
+        canopyGeo.translate(0, 1.3, -4);
+        const canopy = new THREE.Mesh(canopyGeo, cockpitMaterial);
+        group.add(canopy);
+        
+        // Wings
+        const wingShape = new THREE.Shape();
+        wingShape.moveTo(0, 0);
+        wingShape.lineTo(-12, -2);
+        wingShape.lineTo(-10, 0);
+        wingShape.lineTo(-8, 0);
+        wingShape.lineTo(0, 1);
+        wingShape.closePath();
+        
+        const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.3, bevelEnabled: false });
+        wingGeo.rotateX(-Math.PI / 2);
+        wingGeo.translate(0, 0, 0);
+        const leftWing = new THREE.Mesh(wingGeo, hullMaterial);
         leftWing.castShadow = true;
         group.add(leftWing);
         
-        // Wing accent strip
-        const wingAccentGeo = new THREE.BoxGeometry(7, 0.35, 0.5);
-        wingAccentGeo.translate(-5, 0.1, 1);
-        const leftWingAccent = new THREE.Mesh(wingAccentGeo, accentMaterial);
-        group.add(leftWingAccent);
-        
-        // Right wing
-        const rightWingGeometry = wingGeometry.clone();
-        rightWingGeometry.translate(10, 0, 0);
-        const rightWing = new THREE.Mesh(rightWingGeometry, bodyMaterial);
+        const rightWingGeo = wingGeo.clone();
+        rightWingGeo.scale(-1, 1, 1);
+        const rightWing = new THREE.Mesh(rightWingGeo, hullMaterial);
         rightWing.castShadow = true;
         group.add(rightWing);
         
-        const rightWingAccentGeo = wingAccentGeo.clone();
-        rightWingAccentGeo.translate(10, 0, 0);
-        const rightWingAccent = new THREE.Mesh(rightWingAccentGeo, accentMaterial);
-        group.add(rightWingAccent);
+        // Wing tip lights
+        const tipGeo = new THREE.SphereGeometry(0.35, 8, 8);
+        const leftTip = new THREE.Mesh(tipGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+        leftTip.position.set(-12, 0, -1);
+        group.add(leftTip);
         
-        // Wing wireframes
-        const wingEdges = new THREE.EdgesGeometry(wingGeometry);
-        group.add(new THREE.LineSegments(wingEdges, wireMaterial));
-        const rightWingEdges = new THREE.EdgesGeometry(rightWingGeometry);
-        group.add(new THREE.LineSegments(rightWingEdges, wireMaterial));
+        const rightTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        rightTip.position.set(12, 0, -1);
+        group.add(rightTip);
         
-        // Tail fin
-        const finGeometry = new THREE.BoxGeometry(0.3, 3, 2);
-        finGeometry.translate(0, 1.5, 3);
-        const fin = new THREE.Mesh(finGeometry, bodyMaterial);
-        fin.castShadow = true;
-        group.add(fin);
+        // Tail section
+        const tailGeo = new THREE.BoxGeometry(0.3, 4, 3);
+        tailGeo.translate(0, 2, 5);
+        const tail = new THREE.Mesh(tailGeo, darkMaterial);
+        group.add(tail);
         
-        // Engine glow (rear)
-        const engineGeometry = new THREE.CylinderGeometry(1, 1.5, 2, 6);
-        engineGeometry.rotateX(Math.PI / 2);
-        engineGeometry.translate(0, 0, 5);
-        const engine = new THREE.Mesh(engineGeometry, engineMaterial);
-        group.add(engine);
+        // Horizontal stabilizers
+        const hStabGeo = new THREE.BoxGeometry(6, 0.2, 2);
+        hStabGeo.translate(0, 0.5, 6);
+        const hStab = new THREE.Mesh(hStabGeo, hullMaterial);
+        group.add(hStab);
         
-        // Engine flame effect
-        const flameGeometry = new THREE.ConeGeometry(0.8, 3, 6);
-        flameGeometry.rotateX(-Math.PI / 2);
-        flameGeometry.translate(0, 0, 7);
-        const flameMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffaa,
-            transparent: true,
-            opacity: 0.7
+        // Engine pods
+        const engineGeo = new THREE.CylinderGeometry(0.9, 1.1, 5, 8);
+        engineGeo.rotateX(Math.PI / 2);
+        
+        const leftEngine = new THREE.Mesh(engineGeo, darkMaterial);
+        leftEngine.position.set(-3.5, -0.5, 3);
+        group.add(leftEngine);
+        
+        const rightEngine = new THREE.Mesh(engineGeo.clone(), darkMaterial);
+        rightEngine.position.set(3.5, -0.5, 3);
+        group.add(rightEngine);
+        
+        // Engine glows
+        const glowGeo = new THREE.CircleGeometry(0.9, 12);
+        glowGeo.rotateX(Math.PI);
+        
+        this.leftEngineGlow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ 
+            color: 0x00ffaa, transparent: true, opacity: 0.9 
+        }));
+        this.leftEngineGlow.position.set(-3.5, -0.5, 5.6);
+        group.add(this.leftEngineGlow);
+        
+        this.rightEngineGlow = new THREE.Mesh(glowGeo.clone(), new THREE.MeshBasicMaterial({ 
+            color: 0x00ffaa, transparent: true, opacity: 0.9 
+        }));
+        this.rightEngineGlow.position.set(3.5, -0.5, 5.6);
+        group.add(this.rightEngineGlow);
+        
+        // Wireframe overlay
+        const wireframeMat = new THREE.LineBasicMaterial({ 
+            color: 0x00ffff, transparent: true, opacity: 0.3 
         });
-        this.engineFlame = new THREE.Mesh(flameGeometry, flameMaterial);
-        group.add(this.engineFlame);
+        const edges = new THREE.EdgesGeometry(fuselageGeo, 30);
+        group.add(new THREE.LineSegments(edges, wireframeMat));
         
         return group;
     }
     
+    createEngineTrails() {
+        const trailMat = new THREE.LineBasicMaterial({
+            color: 0x00ffaa,
+            transparent: true,
+            opacity: 0.5
+        });
+        
+        for (let e = 0; e < 2; e++) {
+            const positions = new Float32Array(60 * 3);
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const trail = new THREE.Line(geometry, trailMat.clone());
+            this.scene.add(trail);
+            this.engineTrails.push(trail);
+            this.trailPositions.push([]);
+        }
+    }
+    
     reset() {
-        this.position.set(0, 150, 300);
-        this.velocity.set(0, 0, 0);
-        this.shipYaw = Math.PI; // Face toward city
-        this.shipPitch = 0;
-        this.shipRoll = 0;
-        this.cameraYaw = 0;
-        this.cameraPitch = 0.2;
-        this.rotation.set(0, Math.PI, 0);
-        this.quaternion.setFromEuler(this.rotation);
+        this.position.set(0, 150, 400);
+        this.velocity.set(0, 0, -this.cruiseSpeed);
+        this.pitch = 0;
+        this.yaw = Math.PI;
+        this.roll = 0;
+        this.throttle = 0.5;
         this.health = this.maxHealth;
         this.shootCooldown = 0;
+        this.cameraShake = 0;
         
-        // Reset camera position immediately
-        this.cameraCurrentPos.copy(this.position).add(new THREE.Vector3(0, this.cameraHeight, this.cameraDistance));
+        this._euler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        this.quaternion.setFromEuler(this._euler);
+        this.cameraCurrent.copy(this.position).add(new THREE.Vector3(0, 10, 30));
+        
+        for (const arr of this.trailPositions) arr.length = 0;
         
         this.mesh.position.copy(this.position);
         this.mesh.quaternion.copy(this.quaternion);
     }
     
     update(deltaTime, keys, mouse) {
-        // Update shoot cooldown
-        if (this.shootCooldown > 0) {
-            this.shootCooldown -= deltaTime;
-        }
+        if (this.shootCooldown > 0) this.shootCooldown -= deltaTime;
         
-        // Handle camera orbit from mouse (right-click or always)
-        this.handleCameraOrbit(mouse);
+        const input = this.getInput(keys, mouse);
+        this.applyFlightControls(deltaTime, input);
         
-        // Handle ship rotation with keys
-        this.handleShipRotation(deltaTime, keys);
+        this._euler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        this.quaternion.setFromEuler(this._euler);
         
-        // Update ship quaternion
-        this.rotation.set(this.shipPitch, this.shipYaw, this.shipRoll, 'YXZ');
-        this.quaternion.setFromEuler(this.rotation);
-        
-        // Calculate direction vectors based on ship orientation
         this._forward.set(0, 0, -1).applyQuaternion(this.quaternion);
         this._right.set(1, 0, 0).applyQuaternion(this.quaternion);
         this._up.set(0, 1, 0).applyQuaternion(this.quaternion);
         
-        // Handle movement input
-        this.handleMovement(deltaTime, keys);
+        const isBoosting = input.boost;
+        let targetSpeed = this.minSpeed + (this.maxSpeed - this.minSpeed) * this.throttle;
+        if (isBoosting) targetSpeed = this.boostSpeed;
         
-        // Apply velocity to position
+        this.velocity.copy(this._forward).multiplyScalar(targetSpeed);
+        
         this._tempVec.copy(this.velocity).multiplyScalar(deltaTime);
         this.position.add(this._tempVec);
         
-        // World boundaries
         this.clampToWorld();
         
-        // Update mesh transform
         this.mesh.position.copy(this.position);
         this.mesh.quaternion.copy(this.quaternion);
         
-        // Update camera to follow player
-        this.updateCamera(deltaTime);
+        this.updateEngineEffects(deltaTime, targetSpeed, isBoosting);
+        this.updateCamera(deltaTime, isBoosting);
+        
+        this.cameraShake *= 0.9;
     }
     
-    handleCameraOrbit(mouse) {
-        // Mouse controls camera orbit around ship
-        this.cameraYaw -= mouse.x * this.mouseSensitivity * 0.5;
-        this.cameraPitch -= mouse.y * this.mouseSensitivity * 0.3;
-        
-        // Clamp pitch to prevent flipping
-        this.cameraPitch = Math.max(-0.5, Math.min(0.8, this.cameraPitch));
+    getInput(keys, mouse) {
+        return {
+            pitchUp: keys['KeyW'] || keys['ArrowUp'],
+            pitchDown: keys['KeyS'] || keys['ArrowDown'],
+            yawLeft: keys['KeyA'] || keys['ArrowLeft'],
+            yawRight: keys['KeyD'] || keys['ArrowRight'],
+            rollLeft: keys['KeyQ'],
+            rollRight: keys['KeyE'],
+            boost: keys['ShiftLeft'] || keys['ShiftRight'],
+            brake: keys['ControlLeft'] || keys['ControlRight'] || keys['KeyC'],
+            mouseX: mouse.x,
+            mouseY: mouse.y
+        };
     }
     
-    handleShipRotation(deltaTime, keys) {
-        const turnSpeed = 2.0;
+    applyFlightControls(deltaTime, input) {
+        // Mouse for fine pitch/yaw control
+        const mousePitch = input.mouseY * 0.0015;
+        const mouseYaw = -input.mouseX * 0.0015;
         
-        // Turn ship with A/D or Arrow keys
-        if (keys['KeyA'] || keys['ArrowLeft']) {
-            this.shipYaw += turnSpeed * deltaTime;
-        }
-        if (keys['KeyD'] || keys['ArrowRight']) {
-            this.shipYaw -= turnSpeed * deltaTime;
-        }
+        // W = pitch UP (nose goes up), S = pitch DOWN
+        let pitchInput = 0;
+        if (input.pitchUp) pitchInput = 1;
+        if (input.pitchDown) pitchInput = -1;
+        pitchInput += mousePitch;
         
-        // Pitch with W/S modifies ship pitch for climbing/diving
-        if (keys['ArrowUp']) {
-            this.shipPitch = Math.min(this.shipPitch + turnSpeed * 0.5 * deltaTime, 0.6);
-        } else if (keys['ArrowDown']) {
-            this.shipPitch = Math.max(this.shipPitch - turnSpeed * 0.5 * deltaTime, -0.6);
-        } else {
-            // Auto-level pitch
-            this.shipPitch *= 0.95;
+        this.pitch += pitchInput * this.pitchSpeed * deltaTime;
+        this.pitch = THREE.MathUtils.clamp(this.pitch, -Math.PI / 2.5, Math.PI / 2.5);
+        
+        // Auto-level pitch
+        if (Math.abs(pitchInput) < 0.1) {
+            this.pitch *= 0.96;
         }
         
-        // Roll with Q/E
-        if (keys['KeyQ']) {
-            this.shipRoll += this.rollSpeed * deltaTime;
-        }
-        if (keys['KeyE']) {
-            this.shipRoll -= this.rollSpeed * deltaTime;
-        }
+        // A = yaw LEFT, D = yaw RIGHT
+        let yawInput = 0;
+        if (input.yawLeft) yawInput = 1;
+        if (input.yawRight) yawInput = -1;
+        yawInput += mouseYaw;
+        
+        // Coordinated turn - roll affects yaw
+        yawInput += this.roll * 0.4;
+        this.yaw += yawInput * this.yawSpeed * deltaTime;
+        
+        // Q/E = manual roll, also auto-roll into turns
+        let rollInput = 0;
+        if (input.rollLeft) rollInput = 1;
+        if (input.rollRight) rollInput = -1;
+        
+        // Auto-bank when turning
+        if (input.yawLeft) rollInput += 0.6;
+        if (input.yawRight) rollInput -= 0.6;
+        
+        this.roll += rollInput * this.rollSpeed * deltaTime;
+        this.roll = THREE.MathUtils.clamp(this.roll, -Math.PI / 2, Math.PI / 2);
         
         // Auto-level roll
-        if (!keys['KeyQ'] && !keys['KeyE']) {
-            this.shipRoll *= 0.95;
+        if (Math.abs(rollInput) < 0.1) {
+            this.roll *= 0.93;
+        }
+        
+        // Throttle
+        if (input.boost) {
+            this.throttle = Math.min(this.throttle + this.throttleSpeed * deltaTime * 2, 1);
+        } else if (input.brake) {
+            this.throttle = Math.max(this.throttle - this.throttleSpeed * deltaTime * 2, 0);
+        } else {
+            // Drift toward cruise
+            const cruiseThrottle = 0.5;
+            this.throttle += (cruiseThrottle - this.throttle) * 0.02;
         }
     }
     
-    handleMovement(deltaTime, keys) {
-        const isBoosting = keys['ShiftLeft'] || keys['ShiftRight'];
-        const currentMaxSpeed = isBoosting ? this.maxSpeed * this.boostMultiplier : this.maxSpeed;
-        const accel = this.acceleration * (isBoosting ? this.boostMultiplier : 1);
+    updateEngineEffects(deltaTime, speed, boosting) {
+        const intensity = boosting ? 1.5 : (speed / this.maxSpeed);
+        const pulse = 0.8 + Math.sin(Date.now() * 0.015) * 0.2;
+        const glowColor = boosting ? 0x00ffff : 0x00ffaa;
         
-        let inputDetected = false;
-        
-        // Forward/backward - W always moves forward in ship direction
-        if (keys['KeyW']) {
-            this._tempVec.copy(this._forward).multiplyScalar(accel * deltaTime);
-            this.velocity.add(this._tempVec);
-            inputDetected = true;
-        }
-        if (keys['KeyS']) {
-            this._tempVec.copy(this._forward).multiplyScalar(-accel * 0.5 * deltaTime);
-            this.velocity.add(this._tempVec);
-            inputDetected = true;
-        }
-        
-        // Space to ascend, C to descend (world up/down)
-        if (keys['Space']) {
-            this.velocity.y += accel * 0.7 * deltaTime;
-            inputDetected = true;
-        }
-        if (keys['KeyC']) {
-            this.velocity.y -= accel * 0.7 * deltaTime;
-            inputDetected = true;
-        }
-        
-        // Apply deceleration when no input
-        if (!inputDetected) {
-            const speed = this.velocity.length();
-            if (speed > 0.1) {
-                const decelAmount = Math.min(this.deceleration * deltaTime, speed);
-                this.velocity.normalize().multiplyScalar(speed - decelAmount);
-            } else {
-                this.velocity.set(0, 0, 0);
+        [this.leftEngineGlow, this.rightEngineGlow].forEach(glow => {
+            if (glow) {
+                glow.material.opacity = intensity * pulse;
+                glow.material.color.setHex(glowColor);
+                glow.scale.setScalar(0.8 + intensity * 0.5);
             }
-        }
+        });
         
-        // Clamp to max speed
-        const speed = this.velocity.length();
-        if (speed > currentMaxSpeed) {
-            this.velocity.normalize().multiplyScalar(currentMaxSpeed);
+        // Engine trails
+        const engineOffsets = [
+            new THREE.Vector3(-3.5, -0.5, 5.6),
+            new THREE.Vector3(3.5, -0.5, 5.6)
+        ];
+        
+        for (let i = 0; i < 2; i++) {
+            const worldPos = engineOffsets[i].clone().applyQuaternion(this.quaternion).add(this.position);
+            this.trailPositions[i].unshift(worldPos);
+            if (this.trailPositions[i].length > 60) this.trailPositions[i].pop();
+            
+            const posArray = this.engineTrails[i].geometry.attributes.position.array;
+            for (let j = 0; j < this.trailPositions[i].length; j++) {
+                const p = this.trailPositions[i][j];
+                posArray[j * 3] = p.x;
+                posArray[j * 3 + 1] = p.y;
+                posArray[j * 3 + 2] = p.z;
+            }
+            this.engineTrails[i].geometry.attributes.position.needsUpdate = true;
+            this.engineTrails[i].geometry.setDrawRange(0, this.trailPositions[i].length);
+            this.engineTrails[i].material.opacity = intensity * 0.5;
+            this.engineTrails[i].material.color.setHex(glowColor);
         }
     }
     
     clampToWorld() {
-        const halfWorld = WORLD_SIZE / 2 - 20;
+        const halfWorld = WORLD_SIZE / 2 - 50;
+        const edgePush = 100;
         
-        this.position.x = Math.max(-halfWorld, Math.min(halfWorld, this.position.x));
-        this.position.z = Math.max(-halfWorld, Math.min(halfWorld, this.position.z));
-        this.position.y = Math.max(5, Math.min(400, this.position.y));
+        if (Math.abs(this.position.x) > halfWorld - edgePush) {
+            this.yaw += Math.sign(this.position.x) * 0.02;
+        }
+        if (Math.abs(this.position.z) > halfWorld - edgePush) {
+            this.yaw += Math.sign(this.position.z) * 0.02;
+        }
+        
+        this.position.x = THREE.MathUtils.clamp(this.position.x, -halfWorld, halfWorld);
+        this.position.z = THREE.MathUtils.clamp(this.position.z, -halfWorld, halfWorld);
+        this.position.y = THREE.MathUtils.clamp(this.position.y, 10, 500);
     }
     
-    updateCamera(deltaTime) {
-        // Calculate camera position orbiting around ship
-        const horizontalDist = this.cameraDistance * Math.cos(this.cameraPitch);
-        const verticalOffset = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight;
+    updateCamera(deltaTime, boosting) {
+        const offset = this.cameraOffset.clone();
+        if (boosting) {
+            offset.z += 10;
+            offset.y += 3;
+        }
         
-        // Camera orbit is relative to ship's yaw
-        const totalYaw = this.shipYaw + this.cameraYaw + Math.PI; // +PI to be behind
+        const targetPos = offset.applyQuaternion(this.quaternion).add(this.position);
         
-        this.cameraTargetPos.set(
-            this.position.x + Math.sin(totalYaw) * horizontalDist,
-            this.position.y + verticalOffset,
-            this.position.z + Math.cos(totalYaw) * horizontalDist
-        );
+        if (this.cameraShake > 0.1) {
+            targetPos.x += (Math.random() - 0.5) * this.cameraShake;
+            targetPos.y += (Math.random() - 0.5) * this.cameraShake;
+        }
         
-        // Smooth camera follow
-        this.cameraCurrentPos.lerp(this.cameraTargetPos, this.cameraLerpSpeed);
-        this.camera.position.copy(this.cameraCurrentPos);
+        this.cameraCurrent.lerp(targetPos, this.cameraLerp);
+        this.camera.position.copy(this.cameraCurrent);
         
-        // Camera always looks at ship (slightly ahead of it)
-        const lookTarget = this.position.clone();
-        lookTarget.add(this._forward.clone().multiplyScalar(5));
+        const lookTarget = this._forward.clone().multiplyScalar(this.cameraLookAhead).add(this.position);
         this.camera.lookAt(lookTarget);
     }
     
-    canShoot() {
-        return this.shootCooldown <= 0;
-    }
-    
-    onShoot() {
-        this.shootCooldown = this.shootRate;
-    }
-    
-    getPosition() {
-        return this.position.clone();
-    }
-    
-    getDirection() {
-        return this._forward.clone();
-    }
-    
-    getSpeed() {
-        return this.velocity.length();
-    }
+    canShoot() { return this.shootCooldown <= 0; }
+    onShoot() { this.shootCooldown = this.shootRate; this.cameraShake = 0.5; }
+    getPosition() { return this.position.clone(); }
+    getDirection() { return this._forward.clone(); }
+    getSpeed() { return this.velocity.length(); }
     
     takeDamage(amount) {
         this.health -= amount;
         if (this.health < 0) this.health = 0;
+        this.cameraShake = 2;
         
-        // Flash the ship red briefly
-        this.mesh.traverse((child) => {
-            if (child.material) {
-                const originalColor = child.material.color.getHex();
-                child.material.color.setHex(0xff0000);
-                setTimeout(() => {
-                    child.material.color.setHex(originalColor);
-                }, 100);
+        this.mesh.traverse(child => {
+            if (child.material && child.material.emissive) {
+                const orig = child.material.emissive.getHex();
+                child.material.emissive.setHex(0xff0000);
+                setTimeout(() => child.material.emissive.setHex(orig), 100);
             }
         });
     }
     
     onBuildingCollision(building) {
-        // Push player away from building more aggressively
-        const buildingCenter = new THREE.Vector3();
-        building.bbox.getCenter(buildingCenter);
-        
-        const pushDir = this.position.clone().sub(buildingCenter);
-        pushDir.y = Math.max(pushDir.y, 0.5); // Bias upward to escape
+        const center = new THREE.Vector3();
+        building.bbox.getCenter(center);
+        const pushDir = this.position.clone().sub(center);
+        pushDir.y = Math.max(pushDir.y, 1);
         pushDir.normalize();
-        
-        // Strong push to escape building
-        this.position.add(pushDir.multiplyScalar(10));
-        
-        // Reduce velocity and reverse slightly
-        this.velocity.multiplyScalar(-0.2);
-        
-        // Take damage from collision
-        this.takeDamage(2);
+        this.position.add(pushDir.multiplyScalar(15));
+        this.takeDamage(3);
     }
 }

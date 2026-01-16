@@ -4,6 +4,7 @@ import { CityGenerator } from './city.js';
 import { EnemyManager } from './enemies.js';
 import { CombatSystem } from './combat.js';
 import { HUD } from './hud.js';
+import { Environment } from './environment.js';
 
 // Game Constants
 export const WORLD_SIZE = 2000;
@@ -34,6 +35,8 @@ class Game {
         this.enemyManager = null;
         this.combatSystem = null;
         this.hud = null;
+        this.environment = null;
+        this.particleSystem = null;
         
         // Timing
         this.clock = new THREE.Clock();
@@ -60,8 +63,14 @@ class Game {
         this.combatSystem = new CombatSystem(this.scene);
         this.hud = new HUD();
         
-        // Generate the city
+        // Generate the city first
         this.cityGenerator.generate();
+        
+        // Then add environment (streets, cars, people)
+        this.environment = new Environment(this.scene);
+        
+        // Initialize particle system
+        this.initParticleSystem();
         
         // Start render loop
         this.animate();
@@ -249,6 +258,127 @@ class Game {
         restartButton.addEventListener('click', () => this.restartGame());
     }
     
+    initParticleSystem() {
+        // Explosion particle pool
+        this.explosionParticles = [];
+        this.maxExplosionParticles = 500;
+        
+        const particleGeo = new THREE.BufferGeometry();
+        const positions = new Float32Array(this.maxExplosionParticles * 3);
+        const colors = new Float32Array(this.maxExplosionParticles * 3);
+        const sizes = new Float32Array(this.maxExplosionParticles);
+        
+        for (let i = 0; i < this.maxExplosionParticles; i++) {
+            positions[i * 3] = 0;
+            positions[i * 3 + 1] = -1000; // Hidden below ground
+            positions[i * 3 + 2] = 0;
+            colors[i * 3] = 1;
+            colors[i * 3 + 1] = 0.5;
+            colors[i * 3 + 2] = 0;
+            sizes[i] = 0;
+            
+            this.explosionParticles.push({
+                active: false,
+                velocity: new THREE.Vector3(),
+                life: 0,
+                maxLife: 1,
+                index: i
+            });
+        }
+        
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        particleGeo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        
+        const particleMat = new THREE.PointsMaterial({
+            size: 2,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        this.explosionMesh = new THREE.Points(particleGeo, particleMat);
+        this.scene.add(this.explosionMesh);
+    }
+    
+    createExplosion(position, color = { r: 1, g: 0.5, b: 0 }, count = 30) {
+        const positions = this.explosionMesh.geometry.attributes.position.array;
+        const colors = this.explosionMesh.geometry.attributes.color.array;
+        const sizes = this.explosionMesh.geometry.attributes.size.array;
+        
+        let spawned = 0;
+        for (const particle of this.explosionParticles) {
+            if (!particle.active && spawned < count) {
+                particle.active = true;
+                particle.life = 0;
+                particle.maxLife = 0.5 + Math.random() * 0.5;
+                
+                const i = particle.index;
+                positions[i * 3] = position.x + (Math.random() - 0.5) * 2;
+                positions[i * 3 + 1] = position.y + (Math.random() - 0.5) * 2;
+                positions[i * 3 + 2] = position.z + (Math.random() - 0.5) * 2;
+                
+                particle.velocity.set(
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 60
+                );
+                
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+                sizes[i] = 3 + Math.random() * 3;
+                
+                spawned++;
+            }
+        }
+        
+        this.explosionMesh.geometry.attributes.position.needsUpdate = true;
+        this.explosionMesh.geometry.attributes.color.needsUpdate = true;
+        this.explosionMesh.geometry.attributes.size.needsUpdate = true;
+    }
+    
+    updateParticles(deltaTime) {
+        const positions = this.explosionMesh.geometry.attributes.position.array;
+        const sizes = this.explosionMesh.geometry.attributes.size.array;
+        let needsUpdate = false;
+        
+        for (const particle of this.explosionParticles) {
+            if (particle.active) {
+                particle.life += deltaTime;
+                
+                if (particle.life >= particle.maxLife) {
+                    particle.active = false;
+                    positions[particle.index * 3 + 1] = -1000;
+                    sizes[particle.index] = 0;
+                    needsUpdate = true;
+                    continue;
+                }
+                
+                const i = particle.index;
+                positions[i * 3] += particle.velocity.x * deltaTime;
+                positions[i * 3 + 1] += particle.velocity.y * deltaTime;
+                positions[i * 3 + 2] += particle.velocity.z * deltaTime;
+                
+                // Fade out
+                const lifeRatio = 1 - (particle.life / particle.maxLife);
+                sizes[i] = lifeRatio * (3 + Math.random() * 2);
+                
+                // Slow down
+                particle.velocity.multiplyScalar(0.98);
+                
+                needsUpdate = true;
+            }
+        }
+        
+        if (needsUpdate) {
+            this.explosionMesh.geometry.attributes.position.needsUpdate = true;
+            this.explosionMesh.geometry.attributes.size.needsUpdate = true;
+        }
+    }
+    
     startGame() {
         this.state = GameState.PLAYING;
         this.score = 0;
@@ -325,6 +455,12 @@ class Game {
         // Update projectiles and check collisions
         this.combatSystem.update(deltaTime);
         
+        // Update environment (cars, people, etc.)
+        this.environment.update(deltaTime);
+        
+        // Update particles
+        this.updateParticles(deltaTime);
+        
         // Check collisions
         this.checkCollisions();
         
@@ -363,7 +499,12 @@ class Game {
                             enemy.takeDamage(projectile.damage);
                             projectile.active = false;
                             
+                            // Small hit effect
+                            this.createExplosion(projectile.position, { r: 0, g: 1, b: 1 }, 10);
+                            
                             if (!enemy.active) {
+                                // Big explosion when destroyed
+                                this.createExplosion(enemy.getPosition(), { r: 1, g: 0.5, b: 0 }, 50);
                                 this.addScore(100);
                             }
                         }
@@ -376,6 +517,7 @@ class Game {
                     if (dist < playerRadius) {
                         this.player.takeDamage(projectile.damage);
                         projectile.active = false;
+                        this.createExplosion(projectile.position, { r: 1, g: 0, b: 0 }, 15);
                     }
                 }
             }
