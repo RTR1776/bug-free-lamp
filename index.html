@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vector Space - 3D Spaceship Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- HUD Overlay -->
+        <div id="hud">
+            <div id="health-bar">
+                <div id="health-fill"></div>
+                <span id="health-text">100</span>
+            </div>
+            <div id="score">SCORE: <span id="score-value">0</span></div>
+            <div id="speed">SPEED: <span id="speed-value">0</span></div>
+            <div id="radar">
+                <canvas id="radar-canvas" width="150" height="150"></canvas>
+            </div>
+            <div id="crosshair">+</div>
+        </div>
+        
+        <!-- Menu Screen -->
+        <div id="menu-screen" class="screen">
+            <h1>VECTOR SPACE</h1>
+            <p class="subtitle">A 3D Vector Spaceship Game</p>
+            <div class="controls-info">
+                <h3>CONTROLS</h3>
+                <p>W/S - Thrust Forward/Back</p>
+                <p>A/D - Turn Left/Right</p>
+                <p>MOUSE - Orbit Camera</p>
+                <p>ARROWS - Pitch Ship</p>
+                <p>SPACE - Ascend</p>
+                <p>C - Descend</p>
+                <p>SHIFT - Boost</p>
+                <p>CLICK - Shoot</p>
+            </div>
+            <button id="start-button">START GAME</button>
+        </div>
+        
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen hidden">
+            <h1>GAME OVER</h1>
+            <p>FINAL SCORE: <span id="final-score">0</span></p>
+            <p>ENEMIES DESTROYED: <span id="enemies-destroyed">0</span></p>
+            <button id="restart-button">PLAY AGAIN</button>
+        </div>
+    </div>
+    
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Game Modules -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
