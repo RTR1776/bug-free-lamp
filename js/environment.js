@@ -51,7 +51,9 @@ export class Environment {
             map: roadTexture,
             roughness: 0.85,
             metalness: 0.05,
-            color: 0x222222
+            color: 0x444444,
+            emissive: 0x111111,
+            emissiveIntensity: 0.5
         });
         
         // Create horizontal streets
@@ -422,13 +424,17 @@ export class Environment {
         
         // Body - black and white police colors
         const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x111111,
+            color: 0x222222,
+            emissive: 0x111111,
+            emissiveIntensity: 0.3,
             metalness: 0.8,
             roughness: 0.3
         });
         
         const whiteMaterial = new THREE.MeshStandardMaterial({
             color: 0xffffff,
+            emissive: 0x888888,
+            emissiveIntensity: 0.3,
             metalness: 0.7,
             roughness: 0.3
         });
@@ -546,6 +552,8 @@ export class Environment {
         
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
+            emissive: color,
+            emissiveIntensity: 0.15,
             metalness: 0.85,
             roughness: 0.25
         });
@@ -580,6 +588,8 @@ export class Environment {
         
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
+            emissive: color,
+            emissiveIntensity: 0.15,
             metalness: 0.75,
             roughness: 0.35
         });
@@ -614,6 +624,8 @@ export class Environment {
         
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
+            emissive: color,
+            emissiveIntensity: 0.15,
             metalness: 0.7,
             roughness: 0.4
         });
@@ -695,6 +707,8 @@ export class Environment {
         // Body
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
+            emissive: color,
+            emissiveIntensity: 0.15,
             metalness: 0.8,
             roughness: 0.3
         });
@@ -814,9 +828,9 @@ export class Environment {
     createPersonMesh(skinColor, shirtColor, pantColor) {
         const group = new THREE.Group();
         
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.7 });
-        const pantMat = new THREE.MeshStandardMaterial({ color: pantColor, roughness: 0.8 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, emissive: skinColor, emissiveIntensity: 0.2, roughness: 0.8 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, emissive: shirtColor, emissiveIntensity: 0.25, roughness: 0.7 });
+        const pantMat = new THREE.MeshStandardMaterial({ color: pantColor, emissive: pantColor, emissiveIntensity: 0.15, roughness: 0.8 });
         
         // Head
         const headGeo = new THREE.SphereGeometry(0.25, 8, 8);

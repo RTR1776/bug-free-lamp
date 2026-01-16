@@ -175,16 +175,16 @@ class Game {
     }
     
     setupLighting() {
-        // Ambient light for base visibility
-        const ambient = new THREE.AmbientLight(0x334455, 0.4);
+        // Ambient light for base visibility - BRIGHT to see textured buildings
+        const ambient = new THREE.AmbientLight(0x667788, 1.2);
         this.scene.add(ambient);
         
         // Hemisphere light for sky/ground color variation
-        const hemiLight = new THREE.HemisphereLight(0x4488cc, 0x002211, 0.4);
+        const hemiLight = new THREE.HemisphereLight(0x88aaff, 0x224422, 0.8);
         this.scene.add(hemiLight);
         
-        // Main directional light (moonlight)
-        const moonLight = new THREE.DirectionalLight(0x6688bb, 0.6);
+        // Main directional light (moonlight) - brighter
+        const moonLight = new THREE.DirectionalLight(0x8899cc, 1.0);
         moonLight.position.set(200, 400, 100);
         moonLight.castShadow = true;
         moonLight.shadow.mapSize.width = 2048;

@@ -314,7 +314,9 @@ export class CityGenerator {
             map: this.textures.grass,
             roughness: 0.9,
             metalness: 0.1,
-            color: 0x2a4a2a
+            color: 0x4a7a4a,
+            emissive: 0x112211,
+            emissiveIntensity: 0.2
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
@@ -436,11 +438,12 @@ export class CityGenerator {
         
         const material = new THREE.MeshStandardMaterial({
             map: windowTex,
-            color: type.color,
-            emissive: type.emissive,
-            emissiveIntensity: 0.3,
-            roughness: 0.7,
-            metalness: 0.3
+            color: 0xffffff,
+            emissive: 0x5588cc,
+            emissiveMap: windowTex,
+            emissiveIntensity: 1.2,
+            roughness: 0.5,
+            metalness: 0.1
         });
         
         const geometry = new THREE.BoxGeometry(width, height, depth);
@@ -455,7 +458,7 @@ export class CityGenerator {
         const lineMaterial = new THREE.LineBasicMaterial({ 
             color: 0x00ffff,
             transparent: true,
-            opacity: 0.4
+            opacity: 0.15
         });
         const wireframe = new THREE.LineSegments(edges, lineMaterial);
         wireframe.position.copy(mesh.position);
@@ -502,11 +505,12 @@ export class CityGenerator {
         
         const material = new THREE.MeshStandardMaterial({
             map: windowTex,
-            color: type.color,
-            emissive: type.emissive,
-            emissiveIntensity: 0.2,
-            roughness: 0.6,
-            metalness: 0.4
+            color: 0xffffff,
+            emissive: 0x4477bb,
+            emissiveMap: windowTex,
+            emissiveIntensity: 1.0,
+            roughness: 0.5,
+            metalness: 0.2
         });
         
         const geometry = new THREE.BoxGeometry(width, height, depth);
@@ -521,7 +525,7 @@ export class CityGenerator {
         const lineMaterial = new THREE.LineBasicMaterial({ 
             color: 0x00ff88,
             transparent: true,
-            opacity: 0.3
+            opacity: 0.15
         });
         const wireframe = new THREE.LineSegments(edges, lineMaterial);
         wireframe.position.copy(mesh.position);
@@ -548,7 +552,9 @@ export class CityGenerator {
         // House body with texture
         const wallMaterial = new THREE.MeshStandardMaterial({
             map: this.textures.concrete,
-            color: type.color,
+            color: 0xaabbcc,
+            emissive: 0x333333,
+            emissiveIntensity: 0.3,
             roughness: 0.9,
             metalness: 0.1
         });
@@ -574,7 +580,9 @@ export class CityGenerator {
         // Roof with texture
         const roofMaterial = new THREE.MeshStandardMaterial({
             map: this.textures.roof,
-            color: type.roofColor,
+            color: 0xaa6644,
+            emissive: 0x331111,
+            emissiveIntensity: 0.2,
             roughness: 0.8,
             metalness: 0.2
         });
@@ -605,8 +613,9 @@ export class CityGenerator {
         
         // Stadium structure
         const stadiumMaterial = new THREE.MeshStandardMaterial({
-            color: type.color,
-            emissive: type.emissive,
+            color: 0x55aa77,
+            emissive: 0x224433,
+            emissiveIntensity: 0.4,
             roughness: 0.7,
             metalness: 0.2,
             side: THREE.DoubleSide
@@ -637,7 +646,9 @@ export class CityGenerator {
         const fieldGeometry = new THREE.CircleGeometry(radius * 0.7, 24);
         fieldGeometry.rotateX(-Math.PI / 2);
         const fieldMaterial = new THREE.MeshStandardMaterial({
-            color: 0x228833,
+            color: 0x44bb55,
+            emissive: 0x115522,
+            emissiveIntensity: 0.3,
             roughness: 0.9
         });
         const field = new THREE.Mesh(fieldGeometry, fieldMaterial);
@@ -673,8 +684,9 @@ export class CityGenerator {
         const depth = type.depth;
         
         const material = new THREE.MeshStandardMaterial({
-            color: type.color,
-            emissive: type.emissive,
+            color: 0xcc8866,
+            emissive: 0x553322,
+            emissiveIntensity: 0.4,
             roughness: 0.8,
             metalness: 0.2
         });
