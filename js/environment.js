@@ -45,15 +45,13 @@ export class Environment {
         const numStreets = 12;
         const halfGrid = (numStreets * blockSize) / 2;
         
-        // Road material with better texture
+        // Road material with better texture - realistic asphalt for daytime
         const roadTexture = this.createRoadTexture();
         const roadMaterial = new THREE.MeshStandardMaterial({
             map: roadTexture,
-            roughness: 0.85,
-            metalness: 0.05,
-            color: 0x444444,
-            emissive: 0x111111,
-            emissiveIntensity: 0.5
+            roughness: 0.9,
+            metalness: 0.0,
+            color: 0x555555  // Gray asphalt
         });
         
         // Create horizontal streets
@@ -157,13 +155,13 @@ export class Environment {
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d');
-        
-        // Concrete base
-        ctx.fillStyle = '#707070';
+
+        // Concrete base - lighter for daytime
+        ctx.fillStyle = '#a0a0a0';
         ctx.fillRect(0, 0, 128, 128);
-        
+
         // Add concrete panels with gaps
-        ctx.strokeStyle = '#505050';
+        ctx.strokeStyle = '#888888';
         ctx.lineWidth = 2;
         for (let x = 0; x < 128; x += 32) {
             ctx.beginPath();
@@ -177,16 +175,16 @@ export class Environment {
             ctx.lineTo(128, y);
             ctx.stroke();
         }
-        
+
         // Add noise/weathering
         for (let i = 0; i < 1500; i++) {
             const x = Math.random() * 128;
             const y = Math.random() * 128;
-            const gray = 90 + Math.random() * 40;
+            const gray = 140 + Math.random() * 50;
             ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
             ctx.fillRect(x, y, 1, 1);
         }
-        
+
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
@@ -237,22 +235,22 @@ export class Environment {
         canvas.width = 256;
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
-        
-        // Asphalt base - darker
-        ctx.fillStyle = '#141414';
+
+        // Asphalt base - gray for daytime visibility
+        ctx.fillStyle = '#4a4a4a';
         ctx.fillRect(0, 0, 256, 256);
-        
+
         // Road texture noise with variation
         for (let i = 0; i < 4000; i++) {
             const x = Math.random() * 256;
             const y = Math.random() * 256;
-            const gray = 15 + Math.random() * 25;
+            const gray = 60 + Math.random() * 40;
             ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
             ctx.fillRect(x, y, Math.random() * 2, Math.random() * 2);
         }
-        
+
         // Add some cracks and wear
-        ctx.strokeStyle = '#0a0a0a';
+        ctx.strokeStyle = '#303030';
         ctx.lineWidth = 1;
         for (let i = 0; i < 8; i++) {
             ctx.beginPath();
@@ -260,20 +258,20 @@ export class Environment {
             ctx.lineTo(Math.random() * 256, Math.random() * 256);
             ctx.stroke();
         }
-        
-        // Oil stains
+
+        // Oil stains (subtle)
         for (let i = 0; i < 3; i++) {
             const x = Math.random() * 256;
             const y = Math.random() * 256;
             const gradient = ctx.createRadialGradient(x, y, 0, x, y, 15);
-            gradient.addColorStop(0, 'rgba(30, 25, 20, 0.5)');
-            gradient.addColorStop(1, 'rgba(30, 25, 20, 0)');
+            gradient.addColorStop(0, 'rgba(50, 45, 40, 0.3)');
+            gradient.addColorStop(1, 'rgba(50, 45, 40, 0)');
             ctx.fillStyle = gradient;
             ctx.beginPath();
             ctx.arc(x, y, 15, 0, Math.PI * 2);
             ctx.fill();
         }
-        
+
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
@@ -421,21 +419,17 @@ export class Environment {
     
     createPolicCarMesh() {
         const group = new THREE.Group();
-        
-        // Body - black and white police colors
+
+        // Body - black and white police colors (realistic)
         const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x222222,
-            emissive: 0x111111,
-            emissiveIntensity: 0.3,
-            metalness: 0.8,
+            color: 0x111111,
+            metalness: 0.7,
             roughness: 0.3
         });
-        
+
         const whiteMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0x888888,
-            emissiveIntensity: 0.3,
-            metalness: 0.7,
+            color: 0xeeeeee,
+            metalness: 0.6,
             roughness: 0.3
         });
         
@@ -549,13 +543,11 @@ export class Environment {
     
     createSedanMesh(color) {
         const group = new THREE.Group();
-        
+
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
-            emissive: color,
-            emissiveIntensity: 0.15,
-            metalness: 0.85,
-            roughness: 0.25
+            metalness: 0.7,
+            roughness: 0.3
         });
         
         // Lower body
@@ -585,12 +577,10 @@ export class Environment {
     
     createSUVMesh(color) {
         const group = new THREE.Group();
-        
+
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
-            emissive: color,
-            emissiveIntensity: 0.15,
-            metalness: 0.75,
+            metalness: 0.6,
             roughness: 0.35
         });
         
@@ -621,12 +611,10 @@ export class Environment {
     
     createTruckMesh(color) {
         const group = new THREE.Group();
-        
+
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
-            emissive: color,
-            emissiveIntensity: 0.15,
-            metalness: 0.7,
+            metalness: 0.5,
             roughness: 0.4
         });
         
@@ -703,13 +691,11 @@ export class Environment {
     
     createCarMesh(color) {
         const group = new THREE.Group();
-        
-        // Body
+
+        // Body - realistic car paint
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: color,
-            emissive: color,
-            emissiveIntensity: 0.15,
-            metalness: 0.8,
+            metalness: 0.7,
             roughness: 0.3
         });
         
@@ -827,10 +813,11 @@ export class Environment {
     
     createPersonMesh(skinColor, shirtColor, pantColor) {
         const group = new THREE.Group();
-        
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, emissive: skinColor, emissiveIntensity: 0.2, roughness: 0.8 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, emissive: shirtColor, emissiveIntensity: 0.25, roughness: 0.7 });
-        const pantMat = new THREE.MeshStandardMaterial({ color: pantColor, emissive: pantColor, emissiveIntensity: 0.15, roughness: 0.8 });
+
+        // Realistic materials for people
+        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7, metalness: 0.0 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.6, metalness: 0.0 });
+        const pantMat = new THREE.MeshStandardMaterial({ color: pantColor, roughness: 0.7, metalness: 0.0 });
         
         // Head
         const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
@@ -994,8 +981,8 @@ export class Environment {
         lens.rotation.x = -Math.PI / 2;
         group.add(lens);
         
-        // Point light - warm street lamp color
-        const pointLight = new THREE.PointLight(0xffddaa, 0.6, 20);
+        // Point light - off during daytime (very dim)
+        const pointLight = new THREE.PointLight(0xffddaa, 0.05, 10);
         pointLight.position.set(0, 8, -2.4);
         group.add(pointLight);
         
@@ -1052,8 +1039,8 @@ export class Environment {
         glow.rotation.x = -Math.PI / 2;
         group.add(glow);
         
-        // Point light
-        const pointLight = new THREE.PointLight(0xffffaa, 0.5, 30);
+        // Point light - very dim for daytime
+        const pointLight = new THREE.PointLight(0xffffaa, 0.05, 15);
         pointLight.position.set(2.5, 7, 0);
         group.add(pointLight);
         
@@ -1097,33 +1084,37 @@ export class Environment {
     
     createTreeMesh() {
         const group = new THREE.Group();
-        
-        // Trunk
+
+        // Trunk - brown bark
         const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 4, 8);
-        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.9 });
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.95, metalness: 0.0 });
         const trunk = new THREE.Mesh(trunkGeo, trunkMat);
         trunk.position.y = 2;
         trunk.castShadow = true;
+        trunk.receiveShadow = true;
         group.add(trunk);
-        
-        // Foliage layers
-        const foliageMat = new THREE.MeshStandardMaterial({ color: 0x228833, roughness: 0.8 });
-        
+
+        // Foliage layers - bright green for daytime
+        const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2e8b2e, roughness: 0.8, metalness: 0.0 });
+
         const layer1 = new THREE.Mesh(new THREE.ConeGeometry(3, 4, 8), foliageMat);
         layer1.position.y = 5;
         layer1.castShadow = true;
+        layer1.receiveShadow = true;
         group.add(layer1);
-        
+
         const layer2 = new THREE.Mesh(new THREE.ConeGeometry(2.5, 3, 8), foliageMat);
         layer2.position.y = 7;
         layer2.castShadow = true;
+        layer2.receiveShadow = true;
         group.add(layer2);
-        
+
         const layer3 = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2, 8), foliageMat);
         layer3.position.y = 8.5;
         layer3.castShadow = true;
+        layer3.receiveShadow = true;
         group.add(layer3);
-        
+
         return group;
     }
     

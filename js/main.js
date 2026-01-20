@@ -78,41 +78,48 @@ class Game {
     
     setupRenderer() {
         const canvas = document.getElementById('game-canvas');
-        
-        this.renderer = new THREE.WebGLRenderer({ 
+
+        this.renderer = new THREE.WebGLRenderer({
             canvas: canvas,
-            antialias: true 
+            antialias: true
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.setClearColor(0x000816);
+        this.renderer.setClearColor(0x87CEEB); // Sky blue background
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Enable tone mapping for realistic HDR-like rendering
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
     
     setupScene() {
         this.scene = new THREE.Scene();
-        
-        // Add fog for depth and atmosphere
-        this.scene.fog = new THREE.FogExp2(0x000816, 0.0008);
-        
+
+        // Daytime atmospheric fog - light blue haze
+        this.scene.fog = new THREE.FogExp2(0xc9e6ff, 0.0004);
+
         // Camera setup
         this.camera = new THREE.PerspectiveCamera(
-            75, 
-            window.innerWidth / window.innerHeight, 
-            0.1, 
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
             3000
         );
         this.camera.position.set(0, 150, 320);
-        
-        // Skybox - simple gradient background
+
+        // Daytime skybox - blue sky gradient
         const skyGeometry = new THREE.SphereGeometry(1500, 32, 32);
         const skyMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                topColor: { value: new THREE.Color(0x000816) },
-                bottomColor: { value: new THREE.Color(0x001133) },
+                topColor: { value: new THREE.Color(0x0077ff) },    // Deep blue at top
+                bottomColor: { value: new THREE.Color(0xc9e6ff) }, // Light blue at horizon
+                sunColor: { value: new THREE.Color(0xffffee) },    // Sun color
+                sunDirection: { value: new THREE.Vector3(0.5, 0.7, 0.3).normalize() },
                 offset: { value: 400 },
-                exponent: { value: 0.6 }
+                exponent: { value: 0.4 }
             },
             vertexShader: `
                 varying vec3 vWorldPosition;
@@ -125,86 +132,119 @@ class Game {
             fragmentShader: `
                 uniform vec3 topColor;
                 uniform vec3 bottomColor;
+                uniform vec3 sunColor;
+                uniform vec3 sunDirection;
                 uniform float offset;
                 uniform float exponent;
                 varying vec3 vWorldPosition;
                 void main() {
-                    float h = normalize(vWorldPosition + offset).y;
-                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                    vec3 direction = normalize(vWorldPosition + offset);
+                    float h = direction.y;
+
+                    // Sky gradient
+                    vec3 skyColor = mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0));
+
+                    // Sun glow
+                    float sunDot = max(dot(direction, sunDirection), 0.0);
+                    float sunGlow = pow(sunDot, 64.0) * 1.5;  // Sharp sun disc
+                    float sunHalo = pow(sunDot, 8.0) * 0.3;   // Soft halo around sun
+
+                    vec3 finalColor = skyColor + sunColor * (sunGlow + sunHalo);
+
+                    gl_FragColor = vec4(finalColor, 1.0);
                 }
             `,
             side: THREE.BackSide
         });
         const sky = new THREE.Mesh(skyGeometry, skyMaterial);
         this.scene.add(sky);
-        
-        // Stars
-        const starsGeometry = new THREE.BufferGeometry();
-        const starPositions = [];
-        for (let i = 0; i < 2000; i++) {
-            const r = 1400;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            starPositions.push(
-                r * Math.sin(phi) * Math.cos(theta),
-                r * Math.sin(phi) * Math.sin(theta) * 0.5 + 200, // Bias upward
-                r * Math.cos(phi)
-            );
-        }
-        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-        const starsMaterial = new THREE.PointsMaterial({ 
-            color: 0xffffff, 
-            size: 2,
-            transparent: true,
-            opacity: 0.8
-        });
-        const stars = new THREE.Points(starsGeometry, starsMaterial);
-        this.scene.add(stars);
-        
-        // World boundary visualization
+
+        // Clouds (simple fluffy cloud layer)
+        this.createClouds();
+
+        // World boundary visualization - subtle for daytime
         const boundaryGeometry = new THREE.BoxGeometry(WORLD_SIZE, 200, WORLD_SIZE);
         const boundaryEdges = new THREE.EdgesGeometry(boundaryGeometry);
-        const boundaryMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x003366,
+        const boundaryMaterial = new THREE.LineBasicMaterial({
+            color: 0x4488cc,
             transparent: true,
-            opacity: 0.3
+            opacity: 0.15
         });
         const boundaryLines = new THREE.LineSegments(boundaryEdges, boundaryMaterial);
         boundaryLines.position.y = 100;
         this.scene.add(boundaryLines);
     }
+
+    createClouds() {
+        // Create simple cloud sprites scattered across the sky
+        const cloudGroup = new THREE.Group();
+
+        for (let i = 0; i < 30; i++) {
+            const cloudGeometry = new THREE.PlaneGeometry(
+                80 + Math.random() * 120,
+                40 + Math.random() * 60
+            );
+            const cloudMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7 + Math.random() * 0.2,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+
+            // Position clouds in a dome above the city
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 300 + Math.random() * 600;
+            cloud.position.set(
+                Math.cos(angle) * radius,
+                200 + Math.random() * 300,
+                Math.sin(angle) * radius
+            );
+            cloud.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            cloud.rotation.z = Math.random() * Math.PI;
+
+            cloudGroup.add(cloud);
+        }
+
+        this.scene.add(cloudGroup);
+        this.clouds = cloudGroup;
+    }
     
     setupLighting() {
-        // Ambient light for base visibility - BRIGHT to see textured buildings
-        const ambient = new THREE.AmbientLight(0x667788, 1.2);
+        // Ambient light - softer for realistic global illumination
+        const ambient = new THREE.AmbientLight(0x87CEEB, 0.4);
         this.scene.add(ambient);
-        
-        // Hemisphere light for sky/ground color variation
-        const hemiLight = new THREE.HemisphereLight(0x88aaff, 0x224422, 0.8);
+
+        // Hemisphere light - sky blue above, ground brown/green below
+        const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x3d5c3d, 0.6);
         this.scene.add(hemiLight);
-        
-        // Main directional light (moonlight) - brighter
-        const moonLight = new THREE.DirectionalLight(0x8899cc, 1.0);
-        moonLight.position.set(200, 400, 100);
-        moonLight.castShadow = true;
-        moonLight.shadow.mapSize.width = 2048;
-        moonLight.shadow.mapSize.height = 2048;
-        moonLight.shadow.camera.near = 10;
-        moonLight.shadow.camera.far = 1000;
-        moonLight.shadow.camera.left = -500;
-        moonLight.shadow.camera.right = 500;
-        moonLight.shadow.camera.top = 500;
-        moonLight.shadow.camera.bottom = -500;
-        this.scene.add(moonLight);
-        
-        // Point lights for city glow
-        const cityLight1 = new THREE.PointLight(0x00ffff, 0.5, 400);
-        cityLight1.position.set(0, 50, 0);
-        this.scene.add(cityLight1);
-        
-        const cityLight2 = new THREE.PointLight(0xff4400, 0.3, 300);
-        cityLight2.position.set(100, 30, -100);
-        this.scene.add(cityLight2);
+
+        // Main directional light (SUNLIGHT) - warm white, strong intensity
+        this.sunLight = new THREE.DirectionalLight(0xfffaf0, 2.0);
+        this.sunLight.position.set(300, 500, 200);
+        this.sunLight.castShadow = true;
+        this.sunLight.shadow.mapSize.width = 4096;
+        this.sunLight.shadow.mapSize.height = 4096;
+        this.sunLight.shadow.camera.near = 10;
+        this.sunLight.shadow.camera.far = 1500;
+        this.sunLight.shadow.camera.left = -800;
+        this.sunLight.shadow.camera.right = 800;
+        this.sunLight.shadow.camera.top = 800;
+        this.sunLight.shadow.camera.bottom = -800;
+        this.sunLight.shadow.bias = -0.0001;
+        this.sunLight.shadow.normalBias = 0.02;
+        this.scene.add(this.sunLight);
+
+        // Secondary fill light (bounce light from sky) - subtle blue
+        const fillLight = new THREE.DirectionalLight(0x8ec8ff, 0.3);
+        fillLight.position.set(-200, 300, -100);
+        this.scene.add(fillLight);
+
+        // Subtle rim/back light for depth
+        const rimLight = new THREE.DirectionalLight(0xfff5e6, 0.2);
+        rimLight.position.set(-100, 200, -300);
+        this.scene.add(rimLight);
     }
     
     setupEventListeners() {
