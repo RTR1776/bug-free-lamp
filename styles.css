@@ -196,6 +196,40 @@ body {
     margin: 10px 0;
 }
 
+#gameover-screen .stats-detail {
+    font-size: 16px;
+    color: #ffff00;
+    opacity: 0.8;
+}
+
+/* Sound toggle button */
+#sound-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 20, 40, 0.8);
+    border: 2px solid #00ffff;
+    border-radius: 50%;
+    color: #00ffff;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 200;
+    transition: all 0.3s ease;
+}
+
+#sound-toggle:hover {
+    background: #00ffff;
+    color: #000;
+    transform: scale(1.1);
+}
+
+#sound-toggle.muted {
+    color: #ff4444;
+    border-color: #ff4444;
+}
+
 /* Scanline effect */
 #game-container::after {
     content: '';

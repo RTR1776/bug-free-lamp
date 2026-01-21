@@ -1,5 +1,49 @@
 // Player Spaceship Module - Arcade Flight Controls
 import { WORLD_SIZE } from './main.js';
+import { PowerUpType } from './powerups.js';
+
+// Weapon types
+export const WeaponType = {
+    LASER: 'laser',
+    SPREAD: 'spread',
+    RAPID: 'rapid',
+    HEAVY: 'heavy'
+};
+
+const WEAPON_CONFIG = {
+    [WeaponType.LASER]: {
+        name: 'LASER',
+        shootRate: 0.15,
+        damage: 10,
+        projectiles: 1,
+        spread: 0,
+        color: 0x00ffff
+    },
+    [WeaponType.SPREAD]: {
+        name: 'SPREAD',
+        shootRate: 0.25,
+        damage: 7,
+        projectiles: 3,
+        spread: 0.15,
+        color: 0xff00ff
+    },
+    [WeaponType.RAPID]: {
+        name: 'RAPID',
+        shootRate: 0.06,
+        damage: 5,
+        projectiles: 1,
+        spread: 0.05,
+        color: 0xffff00
+    },
+    [WeaponType.HEAVY]: {
+        name: 'HEAVY',
+        shootRate: 0.4,
+        damage: 30,
+        projectiles: 1,
+        spread: 0,
+        color: 0xff4400
+    }
+};
 
 export class Player {
     constructor(scene, camera) {
@@ -22,6 +66,8 @@ export class Player {
         this.cruiseSpeed = 140;
         this.maxSpeed = 280;
         this.boostSpeed = 450;
+        this.baseMaxSpeed = 280;
+        this.baseBoostSpeed = 450;
         
         // Control sensitivity
         this.pitchSpeed = 1.8;
@@ -33,8 +79,26 @@ export class Player {
         this.health = 100;
         this.maxHealth = 100;
         this.shootCooldown = 0;
-        this.shootRate = 0.1;
+        this.shootRate = 0.15;
+        this.baseShootRate = 0.15;
+        this.baseDamage = 10;
+        this.damageMultiplier = 1;
         this.collisionRadius = 5;
+        
+        // Weapons system
+        this.weapons = [WeaponType.LASER];
+        this.currentWeaponIndex = 0;
+        this.currentWeapon = WEAPON_CONFIG[WeaponType.LASER];
+        
+        // Shield system
+        this.shield = 0;
+        this.maxShield = 50;
+        this.shieldActive = false;
+        this.shieldMesh = null;
+        
+        // Power-up effects
+        this.activeEffects = {};
+        this.speedMultiplier = 1;
         
         // Camera
         this.cameraOffset = new THREE.Vector3(0, 5, 22);
@@ -51,6 +115,7 @@ export class Player {
         this.mesh = this.createShipMesh();
         this.scene.add(this.mesh);
         this.createEngineTrails();
+        this.createShieldMesh();
         
         // Reusable vectors
         this._forward = new THREE.Vector3();
@@ -58,6 +123,19 @@ export class Player {
         this._up = new THREE.Vector3();
         this._tempVec = new THREE.Vector3();
         this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    }
+    
+    createShieldMesh() {
+        const shieldGeo = new THREE.SphereGeometry(8, 24, 24);
+        const shieldMat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide,
+            wireframe: true
+        });
+        this.shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+        this.mesh.add(this.shieldMesh);
     }
     
     createShipMesh() {
@@ -228,6 +306,26 @@ export class Player {
         this.shootCooldown = 0;
         this.cameraShake = 0;
         
+        // Reset weapons
+        this.weapons = [WeaponType.LASER];
+        this.currentWeaponIndex = 0;
+        this.currentWeapon = WEAPON_CONFIG[WeaponType.LASER];
+        
+        // Reset shield
+        this.shield = 0;
+        this.shieldActive = false;
+        if (this.shieldMesh) {
+            this.shieldMesh.material.opacity = 0;
+        }
+        
+        // Reset power-up effects
+        this.activeEffects = {};
+        this.damageMultiplier = 1;
+        this.speedMultiplier = 1;
+        this.shootRate = this.baseShootRate;
+        this.maxSpeed = this.baseMaxSpeed;
+        this.boostSpeed = this.baseBoostSpeed;
+        
         this._euler.set(this.pitch, this.yaw, this.roll, 'YXZ');
         this.quaternion.setFromEuler(this._euler);
         this.cameraCurrent.copy(this.position).add(new THREE.Vector3(0, 10, 30));
@@ -241,8 +339,17 @@ export class Player {
     update(deltaTime, keys, mouse) {
         if (this.shootCooldown > 0) this.shootCooldown -= deltaTime;
         
+        // Update power-up effect timers
+        this.updatePowerUpEffects(deltaTime);
+        
         const input = this.getInput(keys, mouse);
         this.applyFlightControls(deltaTime, input);
+        
+        // Weapon switching with 1-4 keys
+        if (keys['Digit1'] && this.weapons.includes(WeaponType.LASER)) this.switchWeapon(0);
+        if (keys['Digit2'] && this.weapons.includes(WeaponType.SPREAD)) this.switchWeapon(this.weapons.indexOf(WeaponType.SPREAD));
+        if (keys['Digit3'] && this.weapons.includes(WeaponType.RAPID)) this.switchWeapon(this.weapons.indexOf(WeaponType.RAPID));
+        if (keys['Digit4'] && this.weapons.includes(WeaponType.HEAVY)) this.switchWeapon(this.weapons.indexOf(WeaponType.HEAVY));
         
         this._euler.set(this.pitch, this.yaw, this.roll, 'YXZ');
         this.quaternion.setFromEuler(this._euler);
@@ -252,8 +359,8 @@ export class Player {
         this._up.set(0, 1, 0).applyQuaternion(this.quaternion);
         
         const isBoosting = input.boost;
-        let targetSpeed = this.minSpeed + (this.maxSpeed - this.minSpeed) * this.throttle;
-        if (isBoosting) targetSpeed = this.boostSpeed;
+        let targetSpeed = this.minSpeed + (this.maxSpeed * this.speedMultiplier - this.minSpeed) * this.throttle;
+        if (isBoosting) targetSpeed = this.boostSpeed * this.speedMultiplier;
         
         this.velocity.copy(this._forward).multiplyScalar(targetSpeed);
         
@@ -266,9 +373,144 @@ export class Player {
         this.mesh.quaternion.copy(this.quaternion);
         
         this.updateEngineEffects(deltaTime, targetSpeed, isBoosting);
+        this.updateShield(deltaTime);
         this.updateCamera(deltaTime, isBoosting);
         
         this.cameraShake *= 0.9;
+    }
+    
+    updatePowerUpEffects(deltaTime) {
+        const expiredEffects = [];
+        
+        for (const [effect, data] of Object.entries(this.activeEffects)) {
+            data.remaining -= deltaTime;
+            if (data.remaining <= 0) {
+                expiredEffects.push(effect);
+            }
+        }
+        
+        // Remove expired effects
+        for (const effect of expiredEffects) {
+            this.removeEffect(effect);
+        }
+    }
+    
+    removeEffect(effect) {
+        delete this.activeEffects[effect];
+        
+        switch (effect) {
+            case 'rapid_fire':
+                this.shootRate = this.currentWeapon.shootRate;
+                break;
+            case 'damage_boost':
+                this.damageMultiplier = 1;
+                break;
+            case 'speed_boost':
+                this.speedMultiplier = 1;
+                break;
+            case 'spread_shot':
+                // Return to normal weapon
+                break;
+        }
+    }
+    
+    updateShield(deltaTime) {
+        if (this.shield > 0) {
+            this.shieldActive = true;
+            // Pulsing shield effect
+            const pulse = 0.2 + Math.sin(Date.now() * 0.01) * 0.1;
+            this.shieldMesh.material.opacity = pulse;
+            this.shieldMesh.rotation.y += deltaTime * 2;
+            this.shieldMesh.rotation.x += deltaTime;
+        } else {
+            this.shieldActive = false;
+            this.shieldMesh.material.opacity = 0;
+        }
+    }
+    
+    switchWeapon(index) {
+        if (index < 0 || index >= this.weapons.length) return;
+        if (index === this.currentWeaponIndex) return;
+        
+        this.currentWeaponIndex = index;
+        this.currentWeapon = WEAPON_CONFIG[this.weapons[index]];
+        this.shootRate = this.currentWeapon.shootRate;
+        
+        // Keep rapid fire effect if active
+        if (this.activeEffects['rapid_fire']) {
+            this.shootRate *= this.activeEffects['rapid_fire'].value;
+        }
+        
+        return true; // Return true if weapon was switched (for audio)
+    }
+    
+    addWeapon(weaponType) {
+        if (!this.weapons.includes(weaponType)) {
+            this.weapons.push(weaponType);
+        }
+    }
+    
+    applyPowerUp(type, config) {
+        switch (type) {
+            case PowerUpType.HEALTH:
+                this.health = Math.min(this.health + config.value, this.maxHealth);
+                break;
+                
+            case PowerUpType.SHIELD:
+                this.shield = Math.min(this.shield + config.value, this.maxShield);
+                break;
+                
+            case PowerUpType.RAPID_FIRE:
+                this.activeEffects['rapid_fire'] = { 
+                    remaining: config.duration, 
+                    value: config.value 
+                };
+                this.shootRate = this.currentWeapon.shootRate * config.value;
+                break;
+                
+            case PowerUpType.SPREAD_SHOT:
+                this.activeEffects['spread_shot'] = { 
+                    remaining: config.duration, 
+                    value: config.value 
+                };
+                // Temporarily unlock spread weapon
+                if (!this.weapons.includes(WeaponType.SPREAD)) {
+                    this.addWeapon(WeaponType.SPREAD);
+                    this.switchWeapon(this.weapons.indexOf(WeaponType.SPREAD));
+                }
+                break;
+                
+            case PowerUpType.DAMAGE_BOOST:
+                this.activeEffects['damage_boost'] = { 
+                    remaining: config.duration, 
+                    value: config.value 
+                };
+                this.damageMultiplier = config.value;
+                break;
+                
+            case PowerUpType.SPEED_BOOST:
+                this.activeEffects['speed_boost'] = { 
+                    remaining: config.duration, 
+                    value: config.value 
+                };
+                this.speedMultiplier = config.value;
+                break;
+        }
+    }
+    
+    getWeaponInfo() {
+        return {
+            name: this.currentWeapon.name,
+            color: this.currentWeapon.color,
+            projectiles: this.activeEffects['spread_shot'] ? 
+                this.activeEffects['spread_shot'].value : this.currentWeapon.projectiles,
+            spread: this.currentWeapon.spread,
+            damage: this.currentWeapon.damage * this.damageMultiplier
+        };
+    }
+    
+    getActiveEffects() {
+        return this.activeEffects;
     }
     
     getInput(keys, mouse) {
@@ -423,11 +665,32 @@ export class Player {
     onShoot() { this.shootCooldown = this.shootRate; this.cameraShake = 0.5; }
     getPosition() { return this.position.clone(); }
     getDirection() { return this._forward.clone(); }
+    getRightVector() { return this._right.clone(); }
     getSpeed() { return this.velocity.length(); }
+    getShield() { return this.shield; }
+    hasShield() { return this.shield > 0; }
     
     takeDamage(amount) {
-        this.health -= amount;
-        if (this.health < 0) this.health = 0;
+        // Shield absorbs damage first
+        if (this.shield > 0) {
+            const shieldDamage = Math.min(this.shield, amount);
+            this.shield -= shieldDamage;
+            amount -= shieldDamage;
+            
+            // Shield hit effect
+            if (this.shieldMesh) {
+                this.shieldMesh.material.color.setHex(0xff0000);
+                setTimeout(() => {
+                    this.shieldMesh.material.color.setHex(0x00ffff);
+                }, 100);
+            }
+        }
+        
+        if (amount > 0) {
+            this.health -= amount;
+            if (this.health < 0) this.health = 0;
+        }
+        
         this.cameraShake = 2;
         
         this.mesh.traverse(child => {

@@ -1,6 +1,6 @@
 // Combat System Module
 
-const PROJECTILE_POOL_SIZE = 100;
+const PROJECTILE_POOL_SIZE = 150;
 
 class Projectile {
     constructor(scene) {
@@ -46,27 +46,51 @@ class Projectile {
         const trail = new THREE.Line(trailGeometry, trailMaterial);
         mesh.add(trail);
         
+        // Add glow sphere for better visibility
+        const glowGeo = new THREE.SphereGeometry(0.5, 8, 8);
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.5
+        });
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        mesh.add(glow);
+        this.glowMesh = glow;
+        
         return mesh;
     }
     
-    fire(position, direction, owner) {
+    fire(position, direction, owner, damage = 10, color = null) {
         this.active = true;
         this.position.copy(position);
         this.direction.copy(direction).normalize();
         this.velocity.copy(this.direction).multiplyScalar(this.speed);
         this.owner = owner;
         this.lifetime = 0;
+        this.damage = damage;
         
-        // Set color based on owner
-        const color = owner === 'player' ? 0x00ffff : 0xff4400;
+        // Set color based on owner or custom color
+        let projectileColor;
+        if (color) {
+            projectileColor = color;
+        } else {
+            projectileColor = owner === 'player' ? 0x00ffff : 0xff4400;
+        }
+        
         this.mesh.traverse((child) => {
             if (child.material) {
-                child.material.color.setHex(color);
+                child.material.color.setHex(projectileColor);
             }
         });
         
-        // Set damage based on owner
-        this.damage = owner === 'player' ? 10 : 15;
+        if (this.glowMesh) {
+            this.glowMesh.material.color.setHex(projectileColor);
+        }
+        
+        // Set damage based on owner if not specified
+        if (!damage) {
+            this.damage = owner === 'player' ? 10 : 15;
+        }
         
         // Offset starting position slightly forward
         this.position.add(this.direction.clone().multiplyScalar(5));
@@ -111,11 +135,11 @@ export class CombatSystem {
         }
     }
     
-    createProjectile(position, direction, owner) {
+    createProjectile(position, direction, owner, damage = 10, color = null) {
         // Find an inactive projectile in the pool
         for (const projectile of this.projectilePool) {
             if (!projectile.active) {
-                projectile.fire(position, direction, owner);
+                projectile.fire(position, direction, owner, damage, color);
                 return projectile;
             }
         }

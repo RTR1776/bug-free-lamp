@@ -1,10 +1,12 @@
 // Vector Space - Main Game Module
-import { Player } from './player.js';
+import { Player, WeaponType } from './player.js';
 import { CityGenerator } from './city.js';
 import { EnemyManager } from './enemies.js';
 import { CombatSystem } from './combat.js';
 import { HUD } from './hud.js';
 import { Environment } from './environment.js';
+import { audioSystem } from './audio.js';
+import { PowerUpManager, PowerUpType } from './powerups.js';
 
 // Game Constants
 export const WORLD_SIZE = 2000;
@@ -24,6 +26,18 @@ class Game {
         this.score = 0;
         this.enemiesDestroyed = 0;
         
+        // Combo/multiplier system
+        this.combo = 0;
+        this.comboMultiplier = 1;
+        this.comboTimer = 0;
+        this.comboTimeout = 3; // Seconds before combo resets
+        this.maxComboMultiplier = 8;
+        
+        // Difficulty progression
+        this.difficultyLevel = 1;
+        this.difficultyTimer = 0;
+        this.difficultyInterval = 60; // Increase difficulty every 60 seconds
+        
         // Three.js core
         this.scene = null;
         this.camera = null;
@@ -37,6 +51,7 @@ class Game {
         this.hud = null;
         this.environment = null;
         this.particleSystem = null;
+        this.powerUpManager = null;
         
         // Timing
         this.clock = new THREE.Clock();
@@ -62,6 +77,7 @@ class Game {
         this.enemyManager = new EnemyManager(this.scene, this.cityGenerator);
         this.combatSystem = new CombatSystem(this.scene);
         this.hud = new HUD();
+        this.powerUpManager = new PowerUpManager(this.scene);
         
         // Generate the city first
         this.cityGenerator.generate();
@@ -293,9 +309,18 @@ class Game {
     setupUI() {
         const startButton = document.getElementById('start-button');
         const restartButton = document.getElementById('restart-button');
+        const soundToggle = document.getElementById('sound-toggle');
         
         startButton.addEventListener('click', () => this.startGame());
         restartButton.addEventListener('click', () => this.restartGame());
+        
+        if (soundToggle) {
+            soundToggle.addEventListener('click', () => {
+                const enabled = audioSystem.toggle();
+                soundToggle.textContent = enabled ? '🔊' : '🔇';
+                soundToggle.classList.toggle('muted', !enabled);
+            });
+        }
     }
     
     initParticleSystem() {
@@ -361,15 +386,16 @@ class Game {
                 positions[i * 3 + 2] = position.z + (Math.random() - 0.5) * 2;
                 
                 particle.velocity.set(
-                    (Math.random() - 0.5) * 60,
-                    (Math.random() - 0.5) * 60,
-                    (Math.random() - 0.5) * 60
+                    (Math.random() - 0.5) * 80,
+                    (Math.random() - 0.5) * 80,
+                    (Math.random() - 0.5) * 80
                 );
                 
-                colors[i * 3] = color.r;
-                colors[i * 3 + 1] = color.g;
-                colors[i * 3 + 2] = color.b;
-                sizes[i] = 3 + Math.random() * 3;
+                // Add color variation
+                colors[i * 3] = color.r * (0.8 + Math.random() * 0.4);
+                colors[i * 3 + 1] = color.g * (0.8 + Math.random() * 0.4);
+                colors[i * 3 + 2] = color.b * (0.5 + Math.random() * 0.5);
+                sizes[i] = 4 + Math.random() * 4;
                 
                 spawned++;
             }
@@ -378,6 +404,38 @@ class Game {
         this.explosionMesh.geometry.attributes.position.needsUpdate = true;
         this.explosionMesh.geometry.attributes.color.needsUpdate = true;
         this.explosionMesh.geometry.attributes.size.needsUpdate = true;
+        
+        // Add a flash light effect for big explosions
+        if (count > 30) {
+            this.createFlashLight(position, color);
+        }
+    }
+    
+    createFlashLight(position, color) {
+        const flashColor = new THREE.Color(color.r, color.g, color.b);
+        const light = new THREE.PointLight(flashColor, 5, 100);
+        light.position.copy(position);
+        this.scene.add(light);
+        
+        // Fade out the light
+        const startIntensity = 5;
+        const duration = 300;
+        const startTime = Date.now();
+        
+        const fadeLight = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / duration;
+            
+            if (progress >= 1) {
+                this.scene.remove(light);
+                return;
+            }
+            
+            light.intensity = startIntensity * (1 - progress);
+            requestAnimationFrame(fadeLight);
+        };
+        
+        fadeLight();
     }
     
     updateParticles(deltaTime) {
@@ -424,6 +482,16 @@ class Game {
         this.score = 0;
         this.enemiesDestroyed = 0;
         
+        // Reset combo system
+        this.combo = 0;
+        this.comboMultiplier = 1;
+        this.comboTimer = 0;
+        
+        // Reset difficulty
+        this.difficultyLevel = 1;
+        this.difficultyTimer = 0;
+        this.enemyManager.setDifficulty(1);
+        
         // Hide menu, show HUD
         document.getElementById('menu-screen').classList.add('hidden');
         document.getElementById('hud').classList.add('active');
@@ -434,6 +502,11 @@ class Game {
         // Reset player
         this.player.reset();
         
+        // Initialize audio
+        audioSystem.init();
+        audioSystem.startEngine();
+        audioSystem.startMusic();
+        
         // Spawn initial enemies
         this.enemyManager.spawnInitialEnemies();
     }
@@ -442,9 +515,10 @@ class Game {
         // Hide game over screen
         document.getElementById('gameover-screen').classList.add('hidden');
         
-        // Clear enemies and projectiles
+        // Clear enemies, projectiles, and power-ups
         this.enemyManager.clear();
         this.combatSystem.clear();
+        this.powerUpManager.clear();
         
         // Start fresh
         this.startGame();
@@ -452,6 +526,11 @@ class Game {
     
     gameOver() {
         this.state = GameState.GAME_OVER;
+        
+        // Stop audio
+        audioSystem.stopEngine();
+        audioSystem.stopMusic();
+        audioSystem.playExplosion(2);
         
         // Exit pointer lock
         document.exitPointerLock();
@@ -465,18 +544,89 @@ class Game {
     
     playerShoot() {
         if (this.player.canShoot()) {
-            const projectile = this.combatSystem.createProjectile(
-                this.player.getPosition(),
-                this.player.getDirection(),
-                'player'
-            );
+            const weaponInfo = this.player.getWeaponInfo();
+            const position = this.player.getPosition();
+            const direction = this.player.getDirection();
+            const rightVector = this.player.getRightVector();
+            
+            // Calculate spread based on weapon
+            const numProjectiles = weaponInfo.projectiles;
+            const spreadAngle = weaponInfo.spread;
+            
+            for (let i = 0; i < numProjectiles; i++) {
+                let projDirection = direction.clone();
+                
+                if (numProjectiles > 1) {
+                    // Spread the projectiles
+                    const angleOffset = (i - (numProjectiles - 1) / 2) * spreadAngle;
+                    const spreadQuat = new THREE.Quaternion().setFromAxisAngle(
+                        new THREE.Vector3(0, 1, 0), 
+                        angleOffset
+                    );
+                    projDirection.applyQuaternion(spreadQuat);
+                }
+                
+                // Add slight randomness for rapid fire
+                if (weaponInfo.spread > 0) {
+                    projDirection.x += (Math.random() - 0.5) * weaponInfo.spread * 0.5;
+                    projDirection.y += (Math.random() - 0.5) * weaponInfo.spread * 0.5;
+                    projDirection.normalize();
+                }
+                
+                const projectile = this.combatSystem.createProjectile(
+                    position,
+                    projDirection,
+                    'player',
+                    weaponInfo.damage,
+                    weaponInfo.color
+                );
+            }
+            
             this.player.onShoot();
+            audioSystem.playShoot(true);
         }
     }
     
-    addScore(points) {
+    addScore(basePoints, enemyPosition) {
+        const points = Math.floor(basePoints * this.comboMultiplier);
         this.score += points;
         this.enemiesDestroyed++;
+        
+        // Increase combo
+        this.combo++;
+        this.comboTimer = this.comboTimeout;
+        
+        // Calculate multiplier (increases every 3 kills)
+        const newMultiplier = Math.min(1 + Math.floor(this.combo / 3), this.maxComboMultiplier);
+        if (newMultiplier > this.comboMultiplier) {
+            this.comboMultiplier = newMultiplier;
+            audioSystem.playCombo(this.comboMultiplier);
+            this.hud.showMessage(`${this.comboMultiplier}x COMBO!`, 1500);
+        }
+        
+        // Chance to spawn power-up
+        this.powerUpManager.spawnAtPosition(enemyPosition);
+    }
+    
+    updateCombo(deltaTime) {
+        if (this.comboTimer > 0) {
+            this.comboTimer -= deltaTime;
+            if (this.comboTimer <= 0) {
+                // Reset combo
+                this.combo = 0;
+                this.comboMultiplier = 1;
+            }
+        }
+    }
+    
+    updateDifficulty(deltaTime) {
+        this.difficultyTimer += deltaTime;
+        if (this.difficultyTimer >= this.difficultyInterval) {
+            this.difficultyTimer = 0;
+            this.difficultyLevel++;
+            this.enemyManager.setDifficulty(this.difficultyLevel);
+            this.hud.showMessage(`DIFFICULTY LEVEL ${this.difficultyLevel}`, 2000);
+        }
     }
     
     update(deltaTime) {
@@ -485,15 +635,21 @@ class Game {
         // Update player
         this.player.update(deltaTime, this.keys, this.mouse);
         
+        // Update engine audio based on speed
+        audioSystem.updateEngine(this.player.getSpeed(), this.keys['ShiftLeft'] || this.keys['ShiftRight']);
+        
         // Reset mouse delta after processing
         this.mouse.x = 0;
         this.mouse.y = 0;
         
         // Update enemies
-        this.enemyManager.update(deltaTime, this.player, this.combatSystem);
+        this.enemyManager.update(deltaTime, this.player, this.combatSystem, audioSystem);
         
         // Update projectiles and check collisions
         this.combatSystem.update(deltaTime);
+        
+        // Update power-ups
+        this.powerUpManager.update(deltaTime, this.player.getPosition());
         
         // Update environment (cars, people, etc.)
         this.environment.update(deltaTime);
@@ -501,15 +657,48 @@ class Game {
         // Update particles
         this.updateParticles(deltaTime);
         
+        // Update combo timer
+        this.updateCombo(deltaTime);
+        
+        // Update difficulty progression
+        this.updateDifficulty(deltaTime);
+        
         // Check collisions
         this.checkCollisions();
         
+        // Check power-up collection
+        this.checkPowerUpCollection();
+        
         // Update HUD
-        this.hud.update(this.player, this.score, this.enemyManager.getEnemies());
+        this.hud.update(
+            this.player, 
+            this.score, 
+            this.enemyManager.getEnemies(),
+            this.comboMultiplier,
+            this.combo,
+            this.comboTimer / this.comboTimeout,
+            this.difficultyLevel
+        );
         
         // Check player death
         if (this.player.health <= 0) {
             this.gameOver();
+        }
+    }
+    
+    checkPowerUpCollection() {
+        const collected = this.powerUpManager.checkCollection(
+            this.player.getPosition(), 
+            this.player.collisionRadius
+        );
+        
+        for (const powerUp of collected) {
+            this.player.applyPowerUp(powerUp.type, powerUp.config);
+            audioSystem.playPowerUp();
+            this.hud.showMessage(powerUp.config.name, 1500);
+            
+            // Bonus score for collecting power-ups
+            this.score += 25;
         }
     }
     
@@ -541,11 +730,13 @@ class Game {
                             
                             // Small hit effect
                             this.createExplosion(projectile.position, { r: 0, g: 1, b: 1 }, 10);
+                            audioSystem.playHit(false);
                             
                             if (!enemy.active) {
                                 // Big explosion when destroyed
                                 this.createExplosion(enemy.getPosition(), { r: 1, g: 0.5, b: 0 }, 50);
-                                this.addScore(100);
+                                audioSystem.playExplosion(1);
+                                this.addScore(100, enemy.getPosition());
                             }
                         }
                     }
@@ -558,6 +749,7 @@ class Game {
                         this.player.takeDamage(projectile.damage);
                         projectile.active = false;
                         this.createExplosion(projectile.position, { r: 1, g: 0, b: 0 }, 15);
+                        audioSystem.playHit(true);
                     }
                 }
             }

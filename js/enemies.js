@@ -118,7 +118,7 @@ class Enemy {
         return waypoints;
     }
     
-    update(deltaTime, player, combatSystem, buildings) {
+    update(deltaTime, player, combatSystem, buildings, audioSystem) {
         if (!this.active) return;
         
         // Update shoot cooldown
@@ -141,7 +141,7 @@ class Enemy {
                 this.chase(deltaTime, playerPos);
                 break;
             case EnemyState.ATTACK:
-                this.attack(deltaTime, playerPos, combatSystem);
+                this.attack(deltaTime, playerPos, combatSystem, audioSystem);
                 break;
             case EnemyState.EVADE:
                 this.evade(deltaTime, buildings);
@@ -188,7 +188,7 @@ class Enemy {
         this.moveToward(predictedPos, this.speed, deltaTime);
     }
     
-    attack(deltaTime, playerPos, combatSystem) {
+    attack(deltaTime, playerPos, combatSystem, audioSystem) {
         // Slow down and aim at player
         this.moveToward(playerPos, this.speed * 0.3, deltaTime);
         
@@ -196,6 +196,9 @@ class Enemy {
         if (this.shootCooldown <= 0) {
             this.shoot(playerPos, combatSystem);
             this.shootCooldown = this.shootRate;
+            if (audioSystem) {
+                audioSystem.playShoot(false);
+            }
         }
     }
     
@@ -310,6 +313,29 @@ export class EnemyManager {
         this.enemies = [];
         this.spawnCooldown = 0;
         this.spawnRate = 5; // Seconds between spawns
+        this.baseSpawnRate = 5;
+        
+        // Difficulty settings
+        this.difficultyLevel = 1;
+        this.enemyHealthMultiplier = 1;
+        this.enemyDamageMultiplier = 1;
+        this.enemySpeedMultiplier = 1;
+        this.maxEnemies = MAX_ENEMIES;
+    }
+    
+    setDifficulty(level) {
+        this.difficultyLevel = level;
+        
+        // Scale enemy stats with difficulty
+        this.enemyHealthMultiplier = 1 + (level - 1) * 0.2; // +20% health per level
+        this.enemyDamageMultiplier = 1 + (level - 1) * 0.15; // +15% damage per level
+        this.enemySpeedMultiplier = 1 + (level - 1) * 0.1; // +10% speed per level
+        
+        // Spawn faster at higher difficulties
+        this.spawnRate = Math.max(2, this.baseSpawnRate - (level - 1) * 0.5);
+        
+        // More enemies at higher difficulties
+        this.maxEnemies = Math.min(MAX_ENEMIES + Math.floor(level / 2), 20);
     }
     
     spawnInitialEnemies() {
@@ -320,7 +346,7 @@ export class EnemyManager {
     }
     
     spawnEnemy() {
-        if (this.enemies.length >= MAX_ENEMIES) return;
+        if (this.enemies.length >= this.maxEnemies) return;
         
         // Find spawn position away from buildings
         let position = null;
@@ -352,16 +378,23 @@ export class EnemyManager {
         
         if (position) {
             const enemy = new Enemy(this.scene, position);
+            
+            // Apply difficulty scaling
+            enemy.maxHealth = Math.floor(enemy.maxHealth * this.enemyHealthMultiplier);
+            enemy.health = enemy.maxHealth;
+            enemy.speed = enemy.speed * this.enemySpeedMultiplier;
+            enemy.shootRate = Math.max(0.5, enemy.shootRate / this.enemyDamageMultiplier);
+            
             this.enemies.push(enemy);
         }
     }
     
-    update(deltaTime, player, combatSystem) {
+    update(deltaTime, player, combatSystem, audioSystem) {
         const buildings = this.cityGenerator.getBuildings();
         
         // Update all enemies
         for (const enemy of this.enemies) {
-            enemy.update(deltaTime, player, combatSystem, buildings);
+            enemy.update(deltaTime, player, combatSystem, buildings, audioSystem);
         }
         
         // Remove dead enemies
@@ -369,7 +402,7 @@ export class EnemyManager {
         
         // Spawn new enemies
         this.spawnCooldown -= deltaTime;
-        if (this.spawnCooldown <= 0 && this.enemies.length < MAX_ENEMIES) {
+        if (this.spawnCooldown <= 0 && this.enemies.length < this.maxEnemies) {
             this.spawnEnemy();
             this.spawnCooldown = this.spawnRate;
         }
