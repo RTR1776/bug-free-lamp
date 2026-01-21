@@ -1,6 +1,7 @@
 // Player Spaceship Module - Arcade Flight Controls
 import { WORLD_SIZE } from './main.js';
 import { PowerUpType } from './powerups.js';
+import { textureManager } from './textures.js';
 
 // Weapon types
 export const WeaponType = {
@@ -141,17 +142,26 @@ export class Player {
     createShipMesh() {
         const group = new THREE.Group();
         
-        // Premium materials
+        // Get textures
+        const hullTexture = textureManager.get('shipHull');
+        const detailTexture = textureManager.get('shipDetail');
+        const cockpitTexture = textureManager.get('cockpit');
+        const engineGlowTexture = textureManager.get('engineGlow');
+        
+        // Premium materials with textures
         const hullMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x1a8ccc,
+            map: hullTexture,
+            color: 0x4a9acc,
             emissive: 0x0a3344,
-            emissiveIntensity: 0.2,
+            emissiveIntensity: 0.3,
             metalness: 0.85,
-            roughness: 0.15
+            roughness: 0.15,
+            envMapIntensity: 1.0
         });
         
         const darkMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x0a1a2a,
+            map: detailTexture,
+            color: 0x1a2a3a,
             metalness: 0.9,
             roughness: 0.3
         });
@@ -163,38 +173,39 @@ export class Player {
         });
         
         const cockpitMaterial = new THREE.MeshStandardMaterial({
+            map: cockpitTexture,
             color: 0x88eeff,
             emissive: 0x00aacc,
-            emissiveIntensity: 0.4,
+            emissiveIntensity: 0.5,
             metalness: 0.1,
             roughness: 0.05,
             transparent: true,
             opacity: 0.85
         });
         
-        // Main fuselage
-        const fuselageGeo = new THREE.CylinderGeometry(1.5, 2.5, 14, 8);
+        // Main fuselage - more detailed
+        const fuselageGeo = new THREE.CylinderGeometry(1.5, 2.5, 14, 12);
         fuselageGeo.rotateX(Math.PI / 2);
         const fuselage = new THREE.Mesh(fuselageGeo, hullMaterial);
         fuselage.castShadow = true;
         group.add(fuselage);
         
         // Nose cone
-        const noseGeo = new THREE.ConeGeometry(1.5, 6, 8);
+        const noseGeo = new THREE.ConeGeometry(1.5, 6, 12);
         noseGeo.rotateX(Math.PI / 2);
         noseGeo.translate(0, 0, -10);
         const nose = new THREE.Mesh(noseGeo, hullMaterial);
         nose.castShadow = true;
         group.add(nose);
         
-        // Cockpit canopy
-        const canopyGeo = new THREE.SphereGeometry(1.6, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        // Cockpit canopy with reflections
+        const canopyGeo = new THREE.SphereGeometry(1.6, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
         canopyGeo.scale(1, 0.5, 1.5);
         canopyGeo.translate(0, 1.3, -4);
         const canopy = new THREE.Mesh(canopyGeo, cockpitMaterial);
         group.add(canopy);
         
-        // Wings
+        // Wings with better geometry
         const wingShape = new THREE.Shape();
         wingShape.moveTo(0, 0);
         wingShape.lineTo(-12, -2);
@@ -203,7 +214,7 @@ export class Player {
         wingShape.lineTo(0, 1);
         wingShape.closePath();
         
-        const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.3, bevelEnabled: false });
+        const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.4, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.1 });
         wingGeo.rotateX(-Math.PI / 2);
         wingGeo.translate(0, 0, 0);
         const leftWing = new THREE.Mesh(wingGeo, hullMaterial);
@@ -216,15 +227,26 @@ export class Player {
         rightWing.castShadow = true;
         group.add(rightWing);
         
-        // Wing tip lights
-        const tipGeo = new THREE.SphereGeometry(0.35, 8, 8);
-        const leftTip = new THREE.Mesh(tipGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+        // Wing tip lights with glow sprites
+        const tipGeo = new THREE.SphereGeometry(0.35, 12, 12);
+        const greenGlowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const leftTip = new THREE.Mesh(tipGeo, greenGlowMat);
         leftTip.position.set(-12, 0, -1);
         group.add(leftTip);
         
-        const rightTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        // Add point light to wing tips
+        const leftTipLight = new THREE.PointLight(0x00ff00, 0.5, 10);
+        leftTipLight.position.copy(leftTip.position);
+        group.add(leftTipLight);
+        
+        const redGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const rightTip = new THREE.Mesh(tipGeo.clone(), redGlowMat);
         rightTip.position.set(12, 0, -1);
         group.add(rightTip);
+        
+        const rightTipLight = new THREE.PointLight(0xff0000, 0.5, 10);
+        rightTipLight.position.copy(rightTip.position);
+        group.add(rightTipLight);
         
         // Tail section
         const tailGeo = new THREE.BoxGeometry(0.3, 4, 3);
@@ -238,8 +260,8 @@ export class Player {
         const hStab = new THREE.Mesh(hStabGeo, hullMaterial);
         group.add(hStab);
         
-        // Engine pods
-        const engineGeo = new THREE.CylinderGeometry(0.9, 1.1, 5, 8);
+        // Engine pods - more detailed
+        const engineGeo = new THREE.CylinderGeometry(0.9, 1.1, 5, 12);
         engineGeo.rotateX(Math.PI / 2);
         
         const leftEngine = new THREE.Mesh(engineGeo, darkMaterial);
@@ -250,25 +272,40 @@ export class Player {
         rightEngine.position.set(3.5, -0.5, 3);
         group.add(rightEngine);
         
-        // Engine glows
-        const glowGeo = new THREE.CircleGeometry(0.9, 12);
-        glowGeo.rotateX(Math.PI);
+        // Engine glows with sprite-like appearance
+        const glowGeo = new THREE.PlaneGeometry(2.5, 2.5);
+        const engineGlowMat = new THREE.MeshBasicMaterial({ 
+            map: engineGlowTexture,
+            color: 0x00ffaa, 
+            transparent: true, 
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
         
-        this.leftEngineGlow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ 
-            color: 0x00ffaa, transparent: true, opacity: 0.9 
-        }));
-        this.leftEngineGlow.position.set(-3.5, -0.5, 5.6);
+        this.leftEngineGlow = new THREE.Mesh(glowGeo, engineGlowMat.clone());
+        this.leftEngineGlow.position.set(-3.5, -0.5, 5.8);
         group.add(this.leftEngineGlow);
         
-        this.rightEngineGlow = new THREE.Mesh(glowGeo.clone(), new THREE.MeshBasicMaterial({ 
-            color: 0x00ffaa, transparent: true, opacity: 0.9 
-        }));
-        this.rightEngineGlow.position.set(3.5, -0.5, 5.6);
+        this.rightEngineGlow = new THREE.Mesh(glowGeo.clone(), engineGlowMat.clone());
+        this.rightEngineGlow.position.set(3.5, -0.5, 5.8);
         group.add(this.rightEngineGlow);
         
-        // Wireframe overlay
+        // Engine point lights
+        const leftEngineLight = new THREE.PointLight(0x00ffaa, 2, 15);
+        leftEngineLight.position.set(-3.5, -0.5, 6);
+        group.add(leftEngineLight);
+        this.leftEngineLight = leftEngineLight;
+        
+        const rightEngineLight = new THREE.PointLight(0x00ffaa, 2, 15);
+        rightEngineLight.position.set(3.5, -0.5, 6);
+        group.add(rightEngineLight);
+        this.rightEngineLight = rightEngineLight;
+        
+        // Subtle wireframe overlay for vector aesthetic
         const wireframeMat = new THREE.LineBasicMaterial({ 
-            color: 0x00ffff, transparent: true, opacity: 0.3 
+            color: 0x00ffff, transparent: true, opacity: 0.15 
         });
         const edges = new THREE.EdgesGeometry(fuselageGeo, 30);
         group.add(new THREE.LineSegments(edges, wireframeMat));
@@ -595,7 +632,15 @@ export class Player {
             if (glow) {
                 glow.material.opacity = intensity * pulse;
                 glow.material.color.setHex(glowColor);
-                glow.scale.setScalar(0.8 + intensity * 0.5);
+                glow.scale.setScalar(0.8 + intensity * 0.6);
+            }
+        });
+        
+        // Update engine lights
+        [this.leftEngineLight, this.rightEngineLight].forEach(light => {
+            if (light) {
+                light.intensity = intensity * 3 * pulse;
+                light.color.setHex(glowColor);
             }
         });
         

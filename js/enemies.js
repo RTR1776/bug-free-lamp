@@ -1,5 +1,6 @@
 // Enemy AI Module
 import { WORLD_SIZE, MAX_ENEMIES } from './main.js';
+import { textureManager } from './textures.js';
 
 // Enemy AI States
 const EnemyState = {
@@ -50,52 +51,126 @@ class Enemy {
     createMesh() {
         const group = new THREE.Group();
         
-        const material = new THREE.LineBasicMaterial({ 
+        // Get textures
+        const hullTexture = textureManager.get('enemyHull');
+        const glowTexture = textureManager.get('enemyGlow');
+        
+        // Main hull material - dark metallic with red accent
+        const hullMaterial = new THREE.MeshStandardMaterial({
+            map: hullTexture,
+            color: 0x440000,
+            metalness: 0.8,
+            roughness: 0.3,
+            emissive: 0x220000,
+            emissiveIntensity: 0.3
+        });
+        
+        // Glowing edge material
+        const edgeMaterial = new THREE.LineBasicMaterial({ 
             color: 0xff0044,
-            linewidth: 2
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.8
         });
         
         // Main body - aggressive angular shape
         const bodyGeometry = new THREE.OctahedronGeometry(3);
         bodyGeometry.scale(1, 0.5, 2);
-        const bodyEdges = new THREE.EdgesGeometry(bodyGeometry);
-        const body = new THREE.LineSegments(bodyEdges, material);
+        const body = new THREE.Mesh(bodyGeometry, hullMaterial);
         group.add(body);
         
-        // Wings - swept back
-        const wingGeometry = new THREE.BufferGeometry();
-        const wingVertices = new Float32Array([
-            // Left wing
-            -1, 0, 0,
-            -5, 0, 2,
-            -4, 0, 3,
-            -1, 0, 1,
-            // Right wing  
-            1, 0, 0,
-            5, 0, 2,
-            4, 0, 3,
-            1, 0, 1
-        ]);
-        wingGeometry.setAttribute('position', new THREE.BufferAttribute(wingVertices, 3));
-        wingGeometry.setIndex([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4]);
-        const wings = new THREE.LineSegments(wingGeometry, material);
-        group.add(wings);
+        // Body wireframe overlay
+        const bodyEdges = new THREE.EdgesGeometry(bodyGeometry);
+        const bodyWireframe = new THREE.LineSegments(bodyEdges, edgeMaterial);
+        group.add(bodyWireframe);
         
-        // Cockpit
-        const cockpitGeometry = new THREE.SphereGeometry(1, 4, 3);
+        // Wings - swept back, solid with glow edges
+        const wingShape = new THREE.Shape();
+        wingShape.moveTo(0, 0);
+        wingShape.lineTo(4, 2);
+        wingShape.lineTo(3, 3);
+        wingShape.lineTo(0, 1);
+        wingShape.closePath();
+        
+        const wingGeometry = new THREE.ShapeGeometry(wingShape);
+        wingGeometry.rotateX(-Math.PI / 2);
+        
+        // Left wing
+        const leftWing = new THREE.Mesh(wingGeometry, hullMaterial);
+        leftWing.position.set(-1, 0, 0);
+        leftWing.scale.x = -1;
+        group.add(leftWing);
+        
+        // Right wing
+        const rightWing = new THREE.Mesh(wingGeometry.clone(), hullMaterial);
+        rightWing.position.set(1, 0, 0);
+        group.add(rightWing);
+        
+        // Wing edges
+        const wingEdgeGeometry = new THREE.BufferGeometry();
+        const wingVertices = new Float32Array([
+            -1, 0, 0, -5, 0, 2, -5, 0, 2, -4, 0, 3, -4, 0, 3, -1, 0, 1, -1, 0, 1, -1, 0, 0,
+            1, 0, 0, 5, 0, 2, 5, 0, 2, 4, 0, 3, 4, 0, 3, 1, 0, 1, 1, 0, 1, 1, 0, 0
+        ]);
+        wingEdgeGeometry.setAttribute('position', new THREE.BufferAttribute(wingVertices, 3));
+        const wingEdges = new THREE.LineSegments(wingEdgeGeometry, edgeMaterial);
+        group.add(wingEdges);
+        
+        // Cockpit - evil red glow
+        const cockpitMaterial = new THREE.MeshStandardMaterial({
+            color: 0x110000,
+            emissive: 0xff0022,
+            emissiveIntensity: 0.8,
+            metalness: 0.9,
+            roughness: 0.1,
+            transparent: true,
+            opacity: 0.9
+        });
+        const cockpitGeometry = new THREE.SphereGeometry(1, 6, 4);
         cockpitGeometry.translate(0, 0.3, -1);
-        const cockpitEdges = new THREE.EdgesGeometry(cockpitGeometry);
-        const cockpit = new THREE.LineSegments(cockpitEdges, material);
+        const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
         group.add(cockpit);
         
-        // Engine trails
-        const engineMaterial = new THREE.LineBasicMaterial({ color: 0xff4400 });
-        const engineGeometry = new THREE.ConeGeometry(0.5, 2, 4);
+        // Cockpit point light
+        const cockpitLight = new THREE.PointLight(0xff0044, 1, 15);
+        cockpitLight.position.set(0, 0.3, -1);
+        group.add(cockpitLight);
+        this.cockpitLight = cockpitLight;
+        
+        // Engine glow sprite
+        const engineSpriteMaterial = new THREE.SpriteMaterial({
+            map: glowTexture,
+            color: 0xff4400,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            opacity: 0.8
+        });
+        
+        const engineGlow = new THREE.Sprite(engineSpriteMaterial.clone());
+        engineGlow.position.set(0, 0, 4.5);
+        engineGlow.scale.set(3, 3, 1);
+        group.add(engineGlow);
+        this.engineGlow = engineGlow;
+        
+        // Engine structure
+        const engineMaterial = new THREE.MeshStandardMaterial({
+            color: 0x220000,
+            emissive: 0xff2200,
+            emissiveIntensity: 0.5,
+            metalness: 0.7,
+            roughness: 0.4
+        });
+        const engineGeometry = new THREE.ConeGeometry(0.6, 2, 6);
         engineGeometry.rotateX(-Math.PI / 2);
         engineGeometry.translate(0, 0, 4);
-        const engineEdges = new THREE.EdgesGeometry(engineGeometry);
-        const engine = new THREE.LineSegments(engineEdges, engineMaterial);
+        const engine = new THREE.Mesh(engineGeometry, engineMaterial);
         group.add(engine);
+        
+        // Engine light
+        const engineLight = new THREE.PointLight(0xff4400, 2, 20);
+        engineLight.position.set(0, 0, 5);
+        group.add(engineLight);
+        this.engineLight = engineLight;
         
         return group;
     }
@@ -158,6 +233,19 @@ class Enemy {
         // Update mesh
         this.mesh.position.copy(this.position);
         this.mesh.quaternion.copy(this.quaternion);
+        
+        // Animate engine glow
+        const pulse = 0.7 + Math.sin(Date.now() * 0.01 + this.position.x) * 0.3;
+        if (this.engineGlow) {
+            this.engineGlow.material.opacity = pulse * 0.8;
+            this.engineGlow.scale.setScalar(2 + pulse);
+        }
+        if (this.engineLight) {
+            this.engineLight.intensity = pulse * 2;
+        }
+        if (this.cockpitLight) {
+            this.cockpitLight.intensity = 0.5 + pulse * 0.5;
+        }
     }
     
     updateState(distanceToPlayer) {
